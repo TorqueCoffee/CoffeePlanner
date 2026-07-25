@@ -1,5 +1,46 @@
 # Journal
 
+## 2026-07-25 — Incident + fix: B2B orders printed but never fulfilled (in-memory ship state lost during printing)
+
+### Work done
+
+- **Symptom (Andy, live):** #6738 (Lucky Dog, 4 boxes) printed perfectly, no errors on screen — but Shopify still showed it UNFULFILLED, with no tracking and no customer email. "It used to do it."
+- **Ground truth pulled before touching anything:**
+  - `shipping_labels` had all four labels safely `purchased` with tracking ($33.49). No money or labels lost.
+  - Shopify: order UNFULFILLED, fulfillment order `OPEN`, **no holds**, zero fulfillments, and — decisively — **zero app events**. Nothing had ever attempted a fulfillment.
+  - Probed the live endpoint with a nonexistent order id: clean `404 Order not found`, which means OAuth, the `fulfillmentOrders` read and the app scopes are all fine (a missing scope returns the 502 scope message added on 2026-07-02).
+  - Deployed `index.html` is byte-identical to local; no commit since 7/14. No code drift, no regression.
+  - It *had* worked: #6680 (7/17) logs "Roast Scheduler marked 8 items as fulfilled" + "sent a shipping confirmation email", 62 seconds after its labels were bought.
+- **Root cause:** the fulfill request never left the iPad. `shipState` is memory-only, and printing opens the combined 4x6 PDF in a second Safari tab; when iPadOS reclaims the app page you return to a clean order list — no error, no red banner, just no Fulfill button and no sign that four paid labels exist. Re-opening the order offers to *buy labels again*. #6680 survived because it was 2 boxes and was fulfilled before the print excursion; today's 4-box order gave iOS the time it needed. This is the "accepted limitation" from Step 5 (2026-06-30) finally biting — and it fails silently, which is the worst possible shape, because printing is the last visible act and reads as "shipped."
+- **Fix (ADR [`0011`](./decisions/0011-recoverable-in-flight-shipments.md)) — bought labels are read back from the DB:**
+  - Migration [`db/2026-07-25-ship-label-recovery.sql`](../db/2026-07-25-ship-label-recovery.sql): adds `tracking_url` + `label_url` columns and three `SECURITY DEFINER` functions — `ship_labels_for_order()`, `ship_labels_pending()`, `mark_ship_labels_fulfilled()` — granted to `anon`. None of them return cost/zone/weight, so ADR [`0004`](./decisions/0004-cost-table-security-model.md) still holds; no anon SELECT policy and no new secret.
+  - `index.html`: `openShipOrder()` is async and rehydrates bought labels by `box_index` (`rehydrateBoughtLabels()`); the order list flags any order with bought-but-unfulfilled labels in red and its button reads **Finish →**; `renderShipActions()` now checks `allBought` *first* so a recovered order lands on Step 3 (print + fulfill) instead of "Get rates"; rate-completeness ignores boxes that already have labels. A blue banner states that labels were restored and nothing was re-charged; a **red** banner if the re-derived pack disagrees with what was bought.
+  - `api/shippo-label.js` stores `tracking_url` + `label_url` on the cost row so a recovered shipment can be reprinted, not just fulfilled.
+  - Help-card copy: "printing is not fulfilling", plus what the recovery flag means.
+- **Remedy (with Andy's go-ahead — sends a customer email):** fulfilled #6738 through the app's own endpoint (not a direct API call), so it went through the real path and was attributed to Roast Scheduler: `SUCCESS`, one email to Shannon, all four tracking numbers on one fulfillment.
+
+### Detours & fixes
+
+- **`cost_updated: true` was lying, and had been since day one.** The #6738 fulfillment returned `cost_updated: true` while all four rows stayed `purchased` — and the successful 7/17 fulfillment never flipped its rows either. Every row in the table is `purchased` except the four flipped by hand on 7/02. Root cause: a PostgREST `PATCH` needs to **read** the rows its `WHERE` matches, and `shipping_labels` has RLS on with no SELECT policy (deliberate), so the WHERE matches nothing — PostgREST returns `204` with `Content-Range: */0` and `res.ok` is `true`. Verified in the live page: encoded and raw filters both return `*/0` while the rows demonstrably exist. Same family as the "upsert needs SELECT" bug from 2026-06-30. Fixed by replacing the PATCH with the `mark_ship_labels_fulfilled()` RPC, which returns a row count so `cost_updated` means what it says.
+- **Ruled out early, cheaply:** B2B fulfillment holds (the `fulfillmentHolds` array is empty and status is `OPEN`, so the `OPEN`/`IN_PROGRESS` filter was never the problem), a missing app scope (the 404 probe), and a stale deploy (hash match).
+- **Vercel runtime logs were useless here** — the plan retains roughly an hour, so the 12:18 PDT purchase window was already gone by the time we looked. The Shopify order event log and the Supabase rows carried the whole story instead.
+
+### Verification
+
+- `node --check` on `api/shippo-label.js`, `api/shopify-fulfill.js`, and both inline `<script>` blocks — all pass.
+- Drove the **real** functions in a browser against stubbed RPC data (the migration isn't applied yet; `/api` doesn't run under a static preview): full recovery → 2 labels re-attached, phase `bought`, Step 3 with Fulfill showing, no re-buy offered, tracking rendered; partial recovery (1 of 2) → keeps the bought box, rates/buys only the other one; already-`fulfilled` rows → ignored, no resurrection; mismatch (3 bought vs 2 packed) → red warning with the exact counts; **RPC unavailable → identical to the old behavior** (phase `packed`, "Get rates"), so an unapplied migration can't break shipping; reprint guard for labels with no stored `label_url`.
+- Screenshotted the list flag ("⚠ 4 labels bought · NOT fulfilled" + **Finish →**) and the restored order detail.
+
+### Still pending — Andy
+
+- **Apply [`db/2026-07-25-ship-label-recovery.sql`](../db/2026-07-25-ship-label-recovery.sql)** (Supabase SQL editor, or approve the MCP migration). Until then the recovery flag and rehydrate quietly no-op and the status flip stays broken. The file ends with a one-line backfill for #6738.
+- **Deploy** — the fix is not live until `index.html` + the two `api/` files ship.
+- #6739 (Cala La Jolla) still needs shipping — no labels bought for it yet.
+
+### Decisions captured
+
+- [`0011-recoverable-in-flight-shipments.md`](./decisions/0011-recoverable-in-flight-shipments.md)
+
 ## 2026-07-14 — Rename: CoffeePlanner → torque-production-portal (disambiguate from torque-green-planner)
 
 ### Work done
@@ -14,7 +55,7 @@
 
 ### Follow-up still open
 
-- `~/.claude/launch.json`: the `coffee-planner` preview config entry (key + `cwd`) needs updating to the new key name and new path. Not yet done as of this entry.
+- ~~`~/.claude/launch.json`: the `coffee-planner` preview config entry (key + `cwd`) needs updating to the new key name and new path.~~ Done — verified 2026-07-25: the entry is `torque-production-portal` pointing at the new path.
 - Confirm no stale `.vercel/project.json` left over from the old local path.
 - `torque-green-planner` is unaffected — separate repo, separate Vercel project, no rename needed there.
 

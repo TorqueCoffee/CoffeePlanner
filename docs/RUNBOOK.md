@@ -17,6 +17,8 @@ Any static file server works; the page fetches live data from Supabase on load, 
 - `green_coffee_settings` — master coffee list. Name column is **`component_name`** (not `name`/`coffee_name`/`product_name`). Source of the Subscription dropdown options.
 - `subscription_schedule` — one row per `week_start` (date, unique), with text columns `modernist`, `classicist`, `espressoist`, and `updated_at`. Stores the per-tier coffee selection; values are plain coffee names matching `green_coffee_settings.component_name`.
 - `shipping_labels` — B2B Cubic Shipping cost capture (one row per label). RLS: anon **INSERT/UPDATE only**, no public read. Written server-side by the serverless functions at purchase; status flips `purchased`→`fulfilled`. Phase 3 P&L view reads from here.
+  - Three `SECURITY DEFINER` functions sit on top of it — `ship_labels_for_order(text)`, `ship_labels_pending()`, `mark_ship_labels_fulfilled(text)` (execute granted to `anon`). They are how the app resumes an in-flight shipment and how the fulfill endpoint flips status, **without** a public SELECT policy that would expose cost (ADR [`0004`](./decisions/0004-cost-table-security-model.md), [`0011`](./decisions/0011-recoverable-in-flight-shipments.md)). Apply [`db/2026-07-25-ship-label-recovery.sql`](../db/2026-07-25-ship-label-recovery.sql) to recreate them (also adds the `tracking_url` / `label_url` columns).
+  - A plain PostgREST `PATCH` **cannot** update this table: `UPDATE … WHERE` has to read the rows it matches, and with no SELECT policy the WHERE matches nothing while PostgREST still returns `204` (`Content-Range: */0`). Use the RPC, not a PATCH.
 
 ## Serverless API (Vercel)
 

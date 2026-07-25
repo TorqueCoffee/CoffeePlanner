@@ -106,16 +106,26 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: 'fulfillmentCreate failed', userErrors, detail: mRes.errors || null })
     }
     // Cost capture (Step 4b): flip this order's label rows to 'fulfilled'. NON-BLOCKING.
-    let cost_updated = false
+    //
+    // Via an RPC, not a PATCH. A PostgREST PATCH silently no-ops here: `UPDATE ... WHERE`
+    // has to READ the rows it matches, and with RLS on and no SELECT policy (deliberate —
+    // ADR 0004 keeps cost unreadable) the WHERE matches nothing. PostgREST then returns
+    // 204 + Content-Range */0, so `res.ok` was true and this reported success while every
+    // row stayed 'purchased'. mark_ship_labels_fulfilled() is SECURITY DEFINER and returns
+    // the row count, so cost_updated now means what it says.
+    let cost_updated = false, cost_rows_updated = 0
     try {
       const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_ANON_KEY
       if (SB_URL && SB_KEY) {
-        const u = await fetch(`${SB_URL}/rest/v1/shipping_labels?order_id=eq.${encodeURIComponent(orderId)}`, {
-          method: 'PATCH',
-          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify({ status: 'fulfilled' })
+        const u = await fetch(`${SB_URL}/rest/v1/rpc/mark_ship_labels_fulfilled`, {
+          method: 'POST',
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_order_id: orderId })
         })
-        cost_updated = u.ok
+        if (u.ok) {
+          cost_rows_updated = Number(await u.text()) || 0
+          cost_updated = cost_rows_updated > 0
+        }
       }
     } catch (e) { /* non-blocking: analytics is the passenger, not the shipment */ }
 
@@ -123,7 +133,7 @@ module.exports = async function handler(req, res) {
       ok: true, order: order.name, notified: notifyCustomer,
       fulfillment_id: payload.fulfillment.id, status: payload.fulfillment.status,
       tracking: payload.fulfillment.trackingInfo,
-      cost_updated
+      cost_updated, cost_rows_updated
     })
   } catch (err) {
     return res.status(500).json({ error: err.message })

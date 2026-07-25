@@ -128,6 +128,10 @@ module.exports = async function handler(req, res) {
           dest_zip: address_to.zip || null,
           weight_lb: Number(parcel.weight) || null,
           tracking_number: txn.tracking_number,
+          // Stored so the ship screen can be rebuilt from the DB alone if the app
+          // page is reloaded/discarded mid-flow (tracking to fulfil, label to reprint).
+          tracking_url: txn.tracking_url_provider || null,
+          label_url: txn.label_url || null,
           shippo_object_id: txn.object_id,
           status: 'purchased'
         }

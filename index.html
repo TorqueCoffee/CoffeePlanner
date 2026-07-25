@@ -546,8 +546,9 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
         <li>If a box fails, only the failed ones retry — bought labels are never re-charged</li>
         <li><strong>Open + print all</strong> opens one combined 4×6 PDF for the whole order, grouped per box — label 1, slip 1, label 2, slip 2, etc. — in a new tab; tap Share &gt; Print &gt; Rollo, Scale 100%</li>
         <li>The per-box <strong>Print label</strong> / <strong>Print slip</strong> buttons open a 4×6 PDF for just that one page — for a single reprint</li>
-        <li><strong>Fulfill order</strong> writes all tracking to Shopify with one customer email — only after every box has a label</li>
+        <li><strong>Fulfill order</strong> writes all tracking to Shopify with one customer email — only after every box has a label. Printing is not fulfilling: the order stays unfulfilled until you tap this</li>
         <li>An already-fulfilled order shows calmly and is never notified twice</li>
+        <li>If this screen resets while you're in the print tab, nothing is lost — the order comes back marked <strong>⚠ labels bought · NOT fulfilled</strong> and <strong>Finish →</strong> restores the bought labels. It never re-charges</li>
       </ul>
     </div>
     <div class="help-card">
@@ -609,6 +610,7 @@ let staleBlends = []
 let roastLocks = {}
 let b2bShipOrders = []   // from /api/shopify-token?type=b2b-ship — the ship-order list
 let shipState = null     // current open order's ship flow (in-memory), or null = list
+let shipPending = {}     // order_id → labels bought but not fulfilled (from the DB, survives a reload)
 
 const today = new Date()
 const todayStr = today.toISOString().split('T')[0]
@@ -1198,7 +1200,24 @@ async function loadShipOrders() {
     body.innerHTML = `<div class="alert alert-red">Couldn't load B2B orders: ${err.message}</div>`
     return
   }
+  await loadShipPending()
   renderShip()
+}
+
+// Orders that already have labels bought but were never fulfilled. The labels are
+// the durable record; shipState is not (a reload while the label PDF is open in
+// another Safari tab drops it). Without this, such an order comes back looking
+// untouched — the money's spent, the customer is waiting, and nothing says so.
+// NON-BLOCKING: if the RPC isn't there yet, the list just loses the flag.
+async function loadShipPending() {
+  shipPending = {}
+  try {
+    const { data, error } = await sb.rpc('ship_labels_pending')
+    if (error) throw error
+    for (const row of data || []) shipPending[row.order_id] = row
+  } catch (e) {
+    console.warn('ship_labels_pending unavailable:', e.message || e)
+  }
 }
 
 function renderShip() {
@@ -1241,15 +1260,21 @@ function renderShipList() {
       ? `<span class="badge badge-red">⚠ ${unp} can't pack</span>`
       : `<span class="badge badge-blue">${r.pack.box_count} box${r.pack.box_count !== 1 ? 'es' : ''}</span>`
     const bags = o.items.reduce((s, it) => s + (it.qty || 0), 0)
-    return `<div class="ship-order-row">
+    // Labels already bought for this order and never fulfilled — say so loudly.
+    const pend = shipPending[o.order_id]
+    const pendChip = pend
+      ? `<span class="badge badge-red">⚠ ${pend.labels_bought} label${pend.labels_bought != 1 ? 's' : ''} bought · NOT fulfilled</span>`
+      : ''
+    return `<div class="ship-order-row"${pend ? ' style="border-left:3px solid var(--red)"' : ''}>
       <div class="ship-addr">
         <div class="ship-addr-name">${sa.company || sa.name || '—'}</div>
         <div>${o.order_name} · ${where || 'no address'}</div>
       </div>
       <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        ${pendChip}
         ${boxChip}
         <span class="badge badge-gray">${bags} bag${bags !== 1 ? 's' : ''}</span>
-        <button class="btn btn-primary btn-sm" onclick="openShipOrder(${i})">Ship →</button>
+        <button class="btn btn-primary btn-sm" onclick="openShipOrder(${i})">${pend ? 'Finish →' : 'Ship →'}</button>
       </div>
     </div>`
   }).join('')
@@ -1257,16 +1282,59 @@ function renderShipList() {
   body.innerHTML = bar + `<div class="table-wrap" style="padding:.25rem 0">${list}</div>`
 }
 
-function openShipOrder(i) {
+async function openShipOrder(i) {
   const order = b2bShipOrders[i]
   if (!order) return
   const pack = packBoxes(order.items)
   shipState = {
     order, pack,
     boxes: pack.boxes.map(box => ({ box, rate: null, rateError: null, rateAlt: null, label: null, labelError: null, status: 'packed', labelOpened: false, printed: false })),
-    phase: 'packed', fulfill: null, fulfillError: null
+    phase: 'packed', fulfill: null, fulfillError: null, recovered: null
   }
   renderShip()
+  await rehydrateBoughtLabels()
+  renderShip()
+}
+
+// Re-attach labels already bought for this order (from the DB) so a reload can't
+// strand a paid shipment. Matched by box_index. NON-BLOCKING — a failure here
+// leaves the normal rate→buy flow exactly as it was.
+async function rehydrateBoughtLabels() {
+  const s = shipState
+  if (!s || !s.order.order_id) return
+  let rows = []
+  try {
+    const { data, error } = await sb.rpc('ship_labels_for_order', { p_order_id: s.order.order_id })
+    if (error) throw error
+    rows = (data || []).filter(r => r.status !== 'fulfilled')
+  } catch (e) {
+    console.warn('ship_labels_for_order unavailable:', e.message || e)
+    return
+  }
+  if (!rows.length) return
+
+  let attached = 0
+  for (const row of rows) {
+    const b = s.boxes[(row.box_index || 0) - 1]
+    if (!b || b.label) continue
+    b.label = {
+      tracking_number: row.tracking_number,
+      tracking_url: row.tracking_url || null,
+      label_url: row.label_url || null,
+      shippo_object_id: row.shippo_object_id || null,
+      recovered: true
+    }
+    b.status = 'bought'
+    attached++
+  }
+  // The pack is re-derived from the live order, so it can disagree with what was
+  // actually bought (an edited order, or a packer change). Say so rather than
+  // quietly shipping a mismatch.
+  s.recovered = {
+    rows: rows.length, attached,
+    mismatch: rows.length !== s.boxes.length ? `${rows.length} label${rows.length !== 1 ? 's' : ''} bought, but this order now packs into ${s.boxes.length} box${s.boxes.length !== 1 ? 'es' : ''}` : null
+  }
+  if (s.boxes.every(b => b.label)) s.phase = 'bought'
 }
 
 function backToShipList() {
@@ -1314,6 +1382,13 @@ function renderShipDetail() {
     warn = `<div class="alert alert-red">⚠ Some items can't be auto-packed into a 14x10x10 box — resolve these before shipping (nothing has been charged):<div class="stale-detail">${lines}</div></div>`
   }
 
+  // Labels recovered from the DB after a reload — never let this be silent, the
+  // money is already spent and the customer is waiting on the fulfillment.
+  if (s.recovered && s.recovered.attached) {
+    const r = s.recovered
+    warn += `<div class="alert ${r.mismatch ? 'alert-red' : 'alert-blue'}">↻ ${r.attached} label${r.attached !== 1 ? 's were' : ' was'} already bought for this order and restored — nothing was re-charged. Print if you haven't, then fulfill.${r.mismatch ? `<div class="stale-detail">⚠ ${r.mismatch} — check the boxes below against what you actually packed before fulfilling.</div>` : ''}</div>`
+  }
+
   const boxesHtml = s.boxes.map((b, idx) => renderShipBox(b, idx)).join('')
   body.innerHTML = bar + addr + warn + boxesHtml + renderShipActions()
 }
@@ -1325,7 +1400,7 @@ function renderShipBox(b, idx) {
   ).join('')
 
   let chip
-  if (b.label) chip = `<span class="badge badge-green">✓ Label${b.label.test ? ' (TEST)' : ''}</span>`
+  if (b.label) chip = `<span class="badge badge-green">✓ Label${b.label.test ? ' (TEST)' : ''}${b.label.recovered ? ' · recovered' : ''}</span>`
   else if (b.status === 'buying') chip = `<span class="badge badge-amber">Buying…</span>`
   else if (b.status === 'failed') chip = `<span class="badge badge-red">✕ Failed</span>`
   else if (b.rate) chip = `<span class="badge badge-blue">$${Number(b.rate.amount).toFixed(2)} · zone ${b.rate.zone || '?'}${b.rate.is_cubic ? ' · cubic' : ''}</span>`
@@ -1387,10 +1462,31 @@ function renderShipActions() {
     return `<div class="ship-actionbar"><div class="ship-step">Resolve the un-packable items above before buying labels. Nothing has been charged.</div></div>`
   }
 
-  const allRated = n > 0 && s.boxes.every(b => b.rate)
+  // A box that already has a label needs no rate — it's paid for. This matters for
+  // recovered shipments, which come back with labels but no rates and must land on
+  // Step 3 (print + fulfill), not back at "Get rates" as if nothing had been bought.
+  const needRate = s.boxes.filter(b => !b.label)
+  const allRated = n > 0 && needRate.every(b => b.rate)
   const anyRateErr = s.boxes.some(b => b.rateError)
   const allBought = n > 0 && s.boxes.every(b => b.label)
   const anyFailed = s.boxes.some(b => !b.label && b.status === 'failed')
+
+  // Step 3 — print + fulfill. Checked first: once every box has a label the only
+  // thing left is to print and write tracking back, whatever else is in state.
+  if (allBought) {
+    let block = ''
+    if (s.fulfillError) block = `<div class="alert alert-red" style="margin:0 0 .75rem">✕ Fulfillment didn't complete: ${s.fulfillError}. The labels are bought — retry the fulfillment; it won't re-buy.</div>`
+    const busy = s.phase === 'fulfilling'
+    return `<div class="ship-actionbar" style="flex-direction:column;align-items:stretch">
+      ${block}
+      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+        <div class="ship-step" style="flex:1;margin:0">Step 3 — open every label and print every slip on the Rollo, then write tracking back to Shopify (one customer email).</div>
+        <button class="btn btn-secondary" onclick="printAll()" ${s.printingAll ? 'disabled' : ''}>🖨 ${s.printingAll ? 'Printing…' : 'Open + print all'}</button>
+        <button class="btn btn-primary" onclick="fulfillOrder()" ${busy ? 'disabled' : ''}>${busy ? 'Fulfilling…' : 'Fulfill order'}</button>
+      </div>
+      <div class="ship-step" style="margin:0">Printing opens a new tab — if this screen resets while you're there, the labels come back automatically. Nothing is fulfilled until you tap Fulfill order.</div>
+    </div>`
+  }
 
   // Step 1 — get rates (no money).
   if (!allRated && !anyRateErr) {
@@ -1428,21 +1524,6 @@ function renderShipActions() {
     </div>`
   }
 
-  // Step 3 — print + fulfill (only once every box has a label).
-  if (allBought) {
-    let block = ''
-    if (s.fulfillError) block = `<div class="alert alert-red" style="margin:0 0 .75rem">✕ Fulfillment didn't complete: ${s.fulfillError}. The labels are bought — retry the fulfillment; it won't re-buy.</div>`
-    const busy = s.phase === 'fulfilling'
-    return `<div class="ship-actionbar" style="flex-direction:column;align-items:stretch">
-      ${block}
-      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
-        <div class="ship-step" style="flex:1;margin:0">Step 3 — open every label and print every slip on the Rollo, then write tracking back to Shopify (one customer email).</div>
-        <button class="btn btn-secondary" onclick="printAll()" ${s.printingAll ? 'disabled' : ''}>🖨 ${s.printingAll ? 'Printing…' : 'Open + print all'}</button>
-        <button class="btn btn-primary" onclick="fulfillOrder()" ${busy ? 'disabled' : ''}>${busy ? 'Fulfilling…' : 'Fulfill order'}</button>
-      </div>
-      <div class="ship-step" style="margin:0">Safari doesn't always auto-apply the 4×6 page size — first slip print, you may need to pick 4×6 manually in the print dialog.</div>
-    </div>`
-  }
   return ''
 }
 
@@ -1550,6 +1631,10 @@ async function buyLabels() {
     renderShip()
   }
   s.phase = s.boxes.every(b => b.label) ? 'bought' : 'partial'
+  // Money has moved — mark the order pending so the list flags it even if this
+  // screen is lost before the fulfillment happens.
+  const boughtNow = s.boxes.filter(b => b.label).length
+  if (boughtNow) shipPending[s.order.order_id] = { order_id: s.order.order_id, order_name: s.order.order_name, labels_bought: boughtNow, box_count: s.boxes.length }
   renderShip()
 }
 
@@ -1574,6 +1659,7 @@ async function fulfillOrder() {
     } else {
       s.fulfill = data
       s.phase = data.alreadyFulfilled ? 'alreadyFulfilled' : 'fulfilled'
+      delete shipPending[s.order.order_id]   // done — drop the "not fulfilled" flag
     }
   } catch (e) {
     s.fulfillError = e.message
@@ -1617,7 +1703,8 @@ async function openShipPdf(boxes, { labels, slips }) {
 
 async function printLabel(idx) {
   const s = shipState, b = s.boxes[idx]
-  if (!b || !b.label || !b.label.label_url) return
+  if (!b || !b.label) return
+  if (!b.label.label_url) { alert('This label was bought before the app saved label files — reprint it from Shippo. Tracking is still on the order.'); return }
   try {
     await openShipPdf([b], { labels: true, slips: false })
     b.labelOpened = true
@@ -1642,6 +1729,9 @@ async function printAll() {
   if (s.printingAll) return
   const bought = s.boxes.filter(b => b.label && b.label.label_url)
   if (!bought.length) { alert('No purchased labels to print yet.'); return }
+  // A recovered label bought before label_url was stored can't be reprinted from here.
+  const noUrl = s.boxes.filter(b => b.label && !b.label.label_url).length
+  if (noUrl && !confirm(`${noUrl} box${noUrl !== 1 ? 'es have' : ' has'} a label that can't be reprinted from the app (bought before the label was saved) — reprint ${noUrl !== 1 ? 'those' : 'it'} from Shippo. Print the other ${bought.length}?`)) return
   s.printingAll = true
   renderShip()
   try {
