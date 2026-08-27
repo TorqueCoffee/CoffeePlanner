@@ -1,5 +1,28 @@
 # Journal
 
+## 2026-08-27 — Incident: #7034 shipped with no tracking pushed — the 2026-07-25 fix was never deployed or migrated
+
+### Work done
+
+- **Symptom (Andy, live):** B2B order #7034 (Best Coffee, Goleta CA, 2 boxes) had both USPS labels bought via Shippo on 2026-08-25 14:51 UTC ($9.22 each) but Shopify showed it unfulfilled with no tracking — no customer email. #7040 (Cala La Jolla), bought 36 min later, *was* fulfilled with tracking at 17:50. Andy added #7034's two tracking numbers to the Shopify fulfillment by hand on 2026-08-27.
+- **Investigation (tracking numbers → Supabase → Shopify):**
+  - All four numbers live in `shipping_labels`; the table has no customer/company field, so ship-to was recovered by joining `order_id` to Shopify: `#7034` → Best Coffee, `#7040` → Cala La Jolla.
+  - **The 2026-07-25 recovery fix (commit `6c16422`, ADR 0011) is not in production.** `main` is **ahead of `origin/main` by 1** — the commit was never pushed. Deployed code is `d4fa4e7`.
+  - **The migration `db/2026-07-25-ship-label-recovery.sql` was never applied** to `torque-roast-scheduler`. Verified against the live DB: columns `tracking_url` / `label_url` absent; functions `ship_labels_for_order`, `ship_labels_pending`, `mark_ship_labels_fulfilled` all absent.
+  - So for a month, B2B shipping has run on the pre-fix path with **zero recovery net**: no "⚠ labels bought · NOT fulfilled" flag, no "Finish →", no DB rehydrate. `shipState` and `shipPending` are both memory-only without the RPCs.
+- **Root cause of #7034:** unchanged from the 2026-07-25 incident — the fulfill request never left the iPad. Buy + print and Fulfill are separate manual taps; printing opens the label PDF in a second Safari tab; iPadOS discards the portal page; the operator returns to a clean list with nothing showing that 2 paid labels exist for #7034 and never taps Fulfill. #7040 survived because the operator got back to it and fulfilled it (manually or in-app) that afternoon.
+- **Audit of every `status='purchased'` order (49 distinct) against Shopify `displayFulfillmentStatus` + `fulfillments.trackingInfo`:**
+  - `shipping_labels.status` is currently **meaningless in production** — 110 of 114 rows stuck at `purchased` including orders that definitely shipped (the deployed `shopify-fulfill.js` still does the broken PostgREST PATCH — silent no-op under RLS, documented 2026-07-25).
+  - **Genuinely stranded — FULFILLED in Shopify but the SUCCESS fulfillment carries no tracking** (customer got a shipped email with no tracking, or none at all): **#6976** (Aug 18, 2 labels, 92037), **#6755** (Jul 29, 3 labels, 92024 — also has a separate CANCELLED fulfillment), **#6659** (Jul 15, 3 labels, 90022), **#6577** (Jul 7 — *two* box-1-of-1 labels bought 30 min apart, a lost-screen re-buy; SUCCESS + CANCELLED both empty), **#6505** (Jul 1, 3 labels, 94103), **#6500** (Jun 30, 1 label, 92037 — order no longer returned by the Admin API). Plus **#7034**, now hand-fixed.
+  - Tracking numbers for all of the above are in `shipping_labels` and were captured in this session for manual attach.
+
+### Still pending — Andy (unchanged from 2026-07-25, now overdue)
+
+- **Apply `db/2026-07-25-ship-label-recovery.sql`** — must go first; the pushed `shippo-label.js` writes `tracking_url` / `label_url` on insert and will 400 without the columns.
+- **Push + deploy `6c16422`.**
+- **Reconcile the 6 stranded orders** above — attach the Shippo tracking numbers to each Shopify fulfillment (with notify) so the wholesale customers get tracking.
+- **Consider** (ADR 0011 "when to revisit"): fold Fulfill into the end of "print all" behind a confirm, or emit a persistent breadcrumb on print, so the second tap can't be silently skipped.
+
 ## 2026-07-25 — Incident + fix: B2B orders printed but never fulfilled (in-memory ship state lost during printing)
 
 ### Work done
