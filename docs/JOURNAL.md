@@ -28,10 +28,21 @@
   - #6500 is no longer returned by the Admin API — verified in the admin UI directly.
 - **Backfilled `shipping_labels.status`:** ran `mark_ship_labels_fulfilled()` for all 48 remaining `purchased` orders (every one confirmed FULFILLED-with-tracking in Shopify during the audit). All 114 rows are now `fulfilled`; `ship_labels_pending()` returns 0. The "Finish →" flag is now trustworthy — it will only fire for genuinely stranded shipments from here.
 
+### Prevention — make the silent skip loud (2026-08-27, `index.html`)
+
+The recovery net catches a stranded shipment *after* the fact and only if the operator returns to the list. Added three prevention layers on top, all in `index.html` (no backend change):
+
+1. **Prompt on return from the print tab.** A `visibilitychange` listener: when the Ship tab regains focus and the open order is *labels bought + printed + not fulfilled* (`shipAwaitingFulfill()`), it asks "Fulfill now and email the customer tracking?" — armed once per print (`_fulfillNagArmed`, set in `printAll()` / `printLabel()`), deferred through `setTimeout` so Safari doesn't suppress the dialog. By the time it fires the operator has just been looking at the printout, so ADR 0011's "look first" still holds.
+2. **Standing red Step-3 state.** Once printed, the action bar shows a persistent red "⚠ {order} is NOT fulfilled yet — {company} has no tracking" banner, the Fulfill button goes `btn-lg` and pulses, "Open + print all" demotes to "Reprint all". The screen no longer looks calm/done after printing.
+3. **List-level banner + one modal alert.** `renderShipList()` renders a red banner above the whole list whenever `ship_labels_pending()` returns anything (not just the per-row chip), and fires one `alert()` per session (`shipPendingAlerted`) naming the orders. Catches the full-tab-discard case where the operator never opens the order again.
+
+Verified: both inline `<script>` blocks parse (`new Function(src)`).
+
 ### Still pending — Andy
 
-- **Commit the JOURNAL** — `03d55a8` pushed the incident entry; this resolution section and the one above are written to disk but the follow-up commit was blocked by the permission classifier.
-- **Consider** (ADR 0011 "when to revisit"): fold Fulfill into the end of "print all" behind a confirm, or emit a persistent breadcrumb on print, so the second tap can't be silently skipped. The recovery net catches it *after* the fact; this would stop it happening.
+- **Commit + deploy** — the JOURNAL entries and the `index.html` prevention work are on disk; earlier `git commit` calls this session were blocked by the permission classifier. `03d55a8` (pushed) only has the incident write-up.
+- **#6577** — refund the duplicate unused label in Shippo.
+- ADR 0011's "when to revisit" (operators ignoring the mismatch warning → make it block) is unchanged.
 
 ## 2026-07-25 — Incident + fix: B2B orders printed but never fulfilled (in-memory ship state lost during printing)
 

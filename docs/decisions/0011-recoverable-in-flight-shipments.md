@@ -38,3 +38,11 @@ Bought labels are read back from the database through `SECURITY DEFINER` RPCs; t
 **Negative:** anyone holding the public anon key can call the RPCs and read tracking numbers and label URLs (a label PDF shows the ship-to address). That is a real widening of what the anon key reaches, accepted because the same key already reaches the B2B order list behind the same casual gate. The rehydrated pack is re-derived from the live order, so it can disagree with what was actually bought — surfaced as a red mismatch warning rather than resolved automatically.
 
 **When to revisit:** if the ship flow ever needs to run outside the casual password gate, move these reads behind a serverless endpoint with a service-role key. If operators start ignoring the mismatch warning, make it block the fulfill button instead of just warning.
+
+## Follow-up (2026-08-27)
+
+The recovery net alone still lost #7034 — it was also never deployed for a month (see JOURNAL 2026-08-27), but even deployed it only helps if the operator goes back to the list. Added prevention on top, `index.html` only, so the silent skip is loud *before* it becomes a stranded shipment:
+
+1. A `visibilitychange` prompt when the Ship tab regains focus with a printed-but-unfulfilled order open ("Fulfill now?"), armed once per print. This is the "auto-fulfill after print all" option from above, softened to a confirm that fires *after* the operator has seen the printout — which resolves the objection that killed the original.
+2. A persistent red "NOT fulfilled" Step-3 state (pulsing Fulfill button, demoted print button) so the post-print screen never looks done.
+3. A list-level red banner + one session alert whenever `ship_labels_pending()` is non-empty.

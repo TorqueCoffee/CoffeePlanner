@@ -36,6 +36,8 @@ body{font-family:var(--font-sans);background:var(--off-white);color:var(--black)
 .btn-ghost{background:none;border:1px dashed var(--border);color:var(--mid-gray)}
 .btn-ghost:hover{border-color:var(--black);color:var(--black)}
 .btn-sm{padding:.25rem .6rem;font-size:.72rem}
+.btn-lg{padding:.6rem 1.4rem;font-size:.92rem;font-weight:700;box-shadow:0 0 0 3px rgba(140,20,25,.25);animation:pulseFulfill 1.6s ease-in-out infinite}
+@keyframes pulseFulfill{0%,100%{box-shadow:0 0 0 3px rgba(140,20,25,.18)}50%{box-shadow:0 0 0 6px rgba(140,20,25,.32)}}
 .status-text{font-family:var(--font-mono);font-size:.7rem;color:var(--mid-gray);margin-left:auto}
 .view{display:none;padding:1.25rem 1.5rem;max-width:1200px}
 .view.active{display:block}
@@ -546,9 +548,10 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
         <li>If a box fails, only the failed ones retry — bought labels are never re-charged</li>
         <li><strong>Open + print all</strong> opens one combined 4×6 PDF for the whole order, grouped per box — label 1, slip 1, label 2, slip 2, etc. — in a new tab; tap Share &gt; Print &gt; Rollo, Scale 100%</li>
         <li>The per-box <strong>Print label</strong> / <strong>Print slip</strong> buttons open a 4×6 PDF for just that one page — for a single reprint</li>
-        <li><strong>Fulfill order</strong> writes all tracking to Shopify with one customer email — only after every box has a label. Printing is not fulfilling: the order stays unfulfilled until you tap this</li>
+        <li><strong>Fulfill order</strong> writes all tracking to Shopify with one customer email — only after every box has a label. <strong>Printing is not fulfilling</strong>: the order stays unfulfilled until you tap this</li>
+        <li>After you print, the screen turns red and the button pulses — <strong>you're not done</strong>. When you come back from the print tab it asks "fulfill now?" — say yes once the printout looks right</li>
         <li>An already-fulfilled order shows calmly and is never notified twice</li>
-        <li>If this screen resets while you're in the print tab, nothing is lost — the order comes back marked <strong>⚠ labels bought · NOT fulfilled</strong> and <strong>Finish →</strong> restores the bought labels. It never re-charges</li>
+        <li>If this screen resets while you're in the print tab, nothing is lost — the order comes back at the top of the list marked <strong>⚠ NOT fulfilled</strong>, and there's a pop-up on load. <strong>Finish →</strong> restores the bought labels and drops you at the Fulfill step. It never re-charges</li>
       </ul>
     </div>
     <div class="help-card">
@@ -611,6 +614,7 @@ let roastLocks = {}
 let b2bShipOrders = []   // from /api/shopify-token?type=b2b-ship — the ship-order list
 let shipState = null     // current open order's ship flow (in-memory), or null = list
 let shipPending = {}     // order_id → labels bought but not fulfilled (from the DB, survives a reload)
+let shipPendingAlerted = false  // one modal alert per session for the above
 
 const today = new Date()
 const todayStr = today.toISOString().split('T')[0]
@@ -1247,8 +1251,22 @@ function renderShipList() {
     <button class="btn btn-primary ship-bar-spacer" onclick="loadShipOrders()">Refresh Orders</button>
   </div>`
 
+  // Paid, usually-printed labels that were never fulfilled — the customer has no
+  // tracking. Flag it above the whole list, not just as a per-row chip, and alert
+  // once per session so it can't be scrolled past.
+  const pendIds = Object.keys(shipPending)
+  let pendBanner = ''
+  if (pendIds.length) {
+    const names = pendIds.map(id => shipPending[id].order_name).filter(Boolean).join(', ')
+    pendBanner = `<div class="alert alert-red" style="margin:.5rem 0">⚠ <strong>${pendIds.length} order${pendIds.length !== 1 ? 's have' : ' has'} paid labels that were never fulfilled</strong> (${names}). The customer${pendIds.length !== 1 ? 's have' : ' has'} no tracking — open ${pendIds.length !== 1 ? 'each' : 'it'} and tap <strong>Finish →</strong>.</div>`
+    if (!shipPendingAlerted) {
+      shipPendingAlerted = true
+      setTimeout(() => alert(`${pendIds.length} B2B order${pendIds.length !== 1 ? 's' : ''} printed labels but ${pendIds.length !== 1 ? 'were' : 'was'} never fulfilled:\n\n${names}\n\nOpen ${pendIds.length !== 1 ? 'each' : 'it'} and tap "Finish →" to send the customer tracking.`), 300)
+    }
+  }
+
   if (!b2bShipOrders.length) {
-    body.innerHTML = bar + '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">No shippable B2B orders in the current unfulfilled set.</div>'
+    body.innerHTML = bar + pendBanner + '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">No shippable B2B orders in the current unfulfilled set.</div>'
     return
   }
 
@@ -1279,7 +1297,7 @@ function renderShipList() {
     </div>`
   }).join('')
 
-  body.innerHTML = bar + `<div class="table-wrap" style="padding:.25rem 0">${list}</div>`
+  body.innerHTML = bar + pendBanner + `<div class="table-wrap" style="padding:.25rem 0">${list}</div>`
 }
 
 async function openShipOrder(i) {
@@ -1477,14 +1495,24 @@ function renderShipActions() {
     let block = ''
     if (s.fulfillError) block = `<div class="alert alert-red" style="margin:0 0 .75rem">✕ Fulfillment didn't complete: ${s.fulfillError}. The labels are bought — retry the fulfillment; it won't re-buy.</div>`
     const busy = s.phase === 'fulfilling'
+    const printed = shipAllPrinted(s)
+    const who = (s.order.shipping_address || {}).company || s.order.order_name
+    // Once the labels are printed, "not fulfilled" is the whole risk — printing is
+    // the last visible act and reads as "shipped". Make the screen say, loudly and
+    // persistently, that the job isn't done and the customer has no tracking.
+    if (printed && !busy) {
+      block += `<div class="alert alert-red" style="margin:0 0 .75rem">⚠ <strong>${s.order.order_name} is NOT fulfilled yet.</strong> ${who} has no tracking until you tap <strong>Fulfill order</strong> below. Nothing is sent, and Shopify still shows this order unshipped.</div>`
+    }
     return `<div class="ship-actionbar" style="flex-direction:column;align-items:stretch">
       ${block}
       <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
-        <div class="ship-step" style="flex:1;margin:0">Step 3 — open every label and print every slip on the Rollo, then write tracking back to Shopify (one customer email).</div>
-        <button class="btn btn-secondary" onclick="printAll()" ${s.printingAll ? 'disabled' : ''}>🖨 ${s.printingAll ? 'Printing…' : 'Open + print all'}</button>
-        <button class="btn btn-primary" onclick="fulfillOrder()" ${busy ? 'disabled' : ''}>${busy ? 'Fulfilling…' : 'Fulfill order'}</button>
+        <div class="ship-step" style="flex:1;margin:0">${printed
+          ? 'Labels printed. Last step — tap Fulfill order to write tracking to Shopify and send the one customer email.'
+          : 'Step 3 — open every label and print every slip on the Rollo, then write tracking back to Shopify (one customer email).'}</div>
+        <button class="btn btn-secondary btn-sm" onclick="printAll()" ${s.printingAll ? 'disabled' : ''}>🖨 ${s.printingAll ? 'Printing…' : (printed ? 'Reprint all' : 'Open + print all')}</button>
+        <button class="btn btn-primary${printed ? ' btn-lg' : ''}" onclick="fulfillOrder()" ${busy ? 'disabled' : ''}>${busy ? 'Fulfilling…' : (printed ? '✅ Fulfill order & email tracking' : 'Fulfill order')}</button>
       </div>
-      <div class="ship-step" style="margin:0">Printing opens a new tab — if this screen resets while you're there, the labels come back automatically. Nothing is fulfilled until you tap Fulfill order.</div>
+      <div class="ship-step" style="margin:0">Printing opens a new tab — if this screen resets while you're there, the order comes back marked <strong>NOT fulfilled</strong> in the list. Nothing is fulfilled until you tap Fulfill order.</div>
     </div>`
   }
 
@@ -1528,6 +1556,42 @@ function renderShipActions() {
 }
 
 function pluralBox(num) { return `${num} box${num !== 1 ? 'es' : ''}` }
+
+// Every bought box has had its label opened/printed at least once.
+function shipAllPrinted(s) {
+  const withLabel = s.boxes.filter(b => b.label)
+  return withLabel.length > 0 && withLabel.every(b => b.labelOpened || b.printed)
+}
+
+// True when the open order has paid labels, is printed, and still isn't fulfilled —
+// the exact state a customer ends up with no tracking if the operator walks away.
+function shipAwaitingFulfill(s) {
+  return !!s && s.boxes.length > 0 && s.boxes.every(b => b.label) &&
+    shipAllPrinted(s) && s.phase !== 'fulfilling' && s.phase !== 'fulfilled' && s.phase !== 'alreadyFulfilled'
+}
+
+// The silent-skip guard. iPad Safari discards the app page while the label PDF is
+// open in the second tab; the operator comes back thinking the job is done and
+// never taps Fulfill. When the Ship tab regains focus in that state, ask — once
+// per print — before they can leave it unfulfilled. By now they've seen the
+// printout (they were just on that tab), so ADR 0011's "look first" still holds.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return
+  const s = shipState
+  if (!shipAwaitingFulfill(s) || !s._fulfillNagArmed) return
+  s._fulfillNagArmed = false
+  // Deferred so the dialog isn't raised from inside the visibility event itself
+  // (Safari can suppress it there).
+  setTimeout(() => {
+    if (!shipAwaitingFulfill(s)) return
+    const who = (s.order.shipping_address || {}).company || s.order.order_name
+    if (confirm(`${s.order.order_name} — the labels are printed but the order is NOT fulfilled.\n\n${who} has no tracking and Shopify still shows it unshipped. Fulfill now and email the customer tracking?`)) {
+      fulfillOrder()
+    } else {
+      renderShip()  // fall through to the standing red "NOT fulfilled" bar
+    }
+  }, 250)
+})
 
 // Map the Shopify ship-to (b2b-ship shape) onto Shippo's address shape. Deliberately
 // no email — passing the recipient email makes Shippo send a stray shipping notice
@@ -1708,6 +1772,7 @@ async function printLabel(idx) {
   try {
     await openShipPdf([b], { labels: true, slips: false })
     b.labelOpened = true
+    if (shipAwaitingFulfill(s)) s._fulfillNagArmed = true
     renderShip()
   } catch (e) { /* alerted inside openShipPdf */ }
 }
@@ -1737,6 +1802,7 @@ async function printAll() {
   try {
     await openShipPdf(bought, { labels: true, slips: true })
     bought.forEach(b => { b.labelOpened = true; b.printed = true })
+    if (shipAwaitingFulfill(s)) s._fulfillNagArmed = true  // prompt on return from the print tab
   } catch (e) {
     // alerted inside openShipPdf
   } finally {
