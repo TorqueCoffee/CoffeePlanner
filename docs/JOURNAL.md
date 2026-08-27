@@ -16,12 +16,22 @@
   - **Genuinely stranded — FULFILLED in Shopify but the SUCCESS fulfillment carries no tracking** (customer got a shipped email with no tracking, or none at all): **#6976** (Aug 18, 2 labels, 92037), **#6755** (Jul 29, 3 labels, 92024 — also has a separate CANCELLED fulfillment), **#6659** (Jul 15, 3 labels, 90022), **#6577** (Jul 7 — *two* box-1-of-1 labels bought 30 min apart, a lost-screen re-buy; SUCCESS + CANCELLED both empty), **#6505** (Jul 1, 3 labels, 94103), **#6500** (Jun 30, 1 label, 92037 — order no longer returned by the Admin API). Plus **#7034**, now hand-fixed.
   - Tracking numbers for all of the above are in `shipping_labels` and were captured in this session for manual attach.
 
-### Still pending — Andy (unchanged from 2026-07-25, now overdue)
+### Resolution
 
-- **Apply `db/2026-07-25-ship-label-recovery.sql`** — must go first; the pushed `shippo-label.js` writes `tracking_url` / `label_url` on insert and will 400 without the columns.
-- **Push + deploy `6c16422`.**
-- **Reconcile the 6 stranded orders** above — attach the Shippo tracking numbers to each Shopify fulfillment (with notify) so the wholesale customers get tracking.
-- **Consider** (ADR 0011 "when to revisit"): fold Fulfill into the end of "print all" behind a confirm, or emit a persistent breadcrumb on print, so the second tap can't be silently skipped.
+- **Pushed `6c16422` + this entry** (`03d55a8`) on 2026-08-27 — the ADR 0011 recovery code is now deployed.
+- **Applied `db/2026-07-25-ship-label-recovery.sql`** to `torque-roast-scheduler` on 2026-08-27. Verified: both columns present, all three RPCs created, #6738 backfill flipped 4 rows. The recovery net (bought-label flag, rehydrate, working status flip) is now live end to end.
+
+### Reconciliation (2026-08-27, done)
+
+- **6 stranded orders** (#6976, #6755, #6659, #6577, #6505, #6500) — Andy added the Shippo tracking numbers to each Shopify fulfillment by hand. Tracking numbers, per order, were pulled from `shipping_labels` this session (see commit message / chat).
+  - #6577 had a **duplicate paid label** (two box-1-of-1, bought 30 min apart) — refund the unused one in Shippo.
+  - #6500 is no longer returned by the Admin API — verified in the admin UI directly.
+- **Backfilled `shipping_labels.status`:** ran `mark_ship_labels_fulfilled()` for all 48 remaining `purchased` orders (every one confirmed FULFILLED-with-tracking in Shopify during the audit). All 114 rows are now `fulfilled`; `ship_labels_pending()` returns 0. The "Finish →" flag is now trustworthy — it will only fire for genuinely stranded shipments from here.
+
+### Still pending — Andy
+
+- **Commit the JOURNAL** — `03d55a8` pushed the incident entry; this resolution section and the one above are written to disk but the follow-up commit was blocked by the permission classifier.
+- **Consider** (ADR 0011 "when to revisit"): fold Fulfill into the end of "print all" behind a confirm, or emit a persistent breadcrumb on print, so the second tap can't be silently skipped. The recovery net catches it *after* the fact; this would stop it happening.
 
 ## 2026-07-25 — Incident + fix: B2B orders printed but never fulfilled (in-memory ship state lost during printing)
 
