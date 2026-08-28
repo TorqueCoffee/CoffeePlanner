@@ -1,5 +1,32 @@
 # Journal
 
+## 2026-08-27 — Step: Production Portal V2 — Torque design system re-skin + the Probat
+
+### Work done
+
+- **Implemented the V2 redesign** from `Production Portal Redesign.dc.html` (design reference in `torque-green-planner/V2 update/`) across all 8 tabs of `index.html`. UI/UX only — the Shopify → Supabase pipeline, order pull, Shippo label code and everything in `api/` were not touched.
+- **Full re-skin to the Torque design system.** The prompt said the tokens were "already in our CSS"; they were not. The app was IBM Plex Mono/Sans on `#f5f4ef`/`#111110` with 1px `#d8d7d2` borders and 4px radii. The whole `<style>` block was replaced with cream `#FFFEF0`/`#EDEAE0`, ink `#100000`, brown `#30231A`, orange `#E58825`, 2px ink borders, 14px card radii, round pills, Hepta Slab (700–800) for names/headings/glanceable numbers, Helvetica Neue for body. Class names were all preserved, so the markup churn stayed contained.
+- **Bagging** — table → card list (the spec's "chip beside the coffee name" and single "3 / 12" count only exist in a card layout). Stat cards are now number-and-label on one line so the coffee list starts higher; the variant is a plain outlined box one size down from the name; both numbers in the count render at 24px full-contrast black.
+- **Roasting** — table → card list with a per-row Primo/Probat toggle, inline batch/shrink editors per machine that persist, an expandable show-the-math panel, a "Batch sizes →" jump to Blends, and summary cards split into **Needed on Primo** / **Needed on Probat** as live sums over rows currently set to each machine.
+- **Blends** — names at 19px Hepta Slab 800; the Single Origin table became Coffee / Primo batch / Primo shrink / Probat batch / Probat shrink, editing the same rows Roasting reads.
+- **B2B** — three-column line items → compact single lines (`2x Dark Drop - 5lb Bulk Bag`), medium weight, more space between companies.
+- **Add Order** — restacked into three rows with `min-width:0` on the flex children; the old fixed pixel widths were what forced the overflow.
+- **Mix Guide** — lb/g output to 30px/20px Hepta Slab 800 in black, right-aligned after the coffee name; qty inputs pinned to explicit black-on-cream with `-webkit-text-fill-color` so they can never inherit a transparent state.
+- **Subscriptions** — three side-by-side selects → label + full-width select stacked per role (long single-origin names like "Balboa Cauca - Auction Lot, Colombia" were truncating). Newest week first; past weeks read-only with a LOCKED badge; "This week" bar kept.
+- **Shrink now drives the math.** `renderRoasting()` had a hardcoded `SHRINKAGE = 1.176` applied to every coffee while the editable `shrinkage_pct` column did nothing. Green lbs is now `roasted / (1 - shrink/100)` for the selected machine.
+- **Migration `db/2026-08-27-probat-machine.sql` applied** to `gblkovtjylrfdotoktkb`: adds `probat_batch_lbs` (nullable), `probat_shrink_pct` (default 15), `roast_machine` (default `primo`, checked). Verified after: 25 coffees, all defaults correct.
+
+### Detours & fixes
+
+- **The prototype contains four features the written spec does not**: a header sync-status pill, an Activity drawer with per-event Undo, Finalize/Reopen-the-day with late-order rollover, and a connection-error banner. Activity and Finalize need new tables and real logic — this would have stopped being a UI pass. Scoped out with Andy; the cheap visual extras (row progress bars, old-order flags, show-the-math) were kept. Deferred, not rejected.
+- **"Auto-resolved coffee" in Subscriptions was dropped.** The spec asked pickers to default to an auto-resolved coffee, but no such resolution exists in the code — new weeks insert as null. Andy confirmed the intent is to keep adding a week and choosing manually, so this became a pure layout change.
+- **Probat batch size is nullable on purpose.** Copying Primo's batch size as a starting value would have produced confident, wrong batch counts on a 33 lb drum. An unset row shows a red prompt and `—` instead.
+- **Could not verify in a browser.** The Chrome extension was not connected this session, so the page was never rendered. JS was syntax-checked with `node --check` and the batch math verified numerically; visual confirmation of all 8 tabs is outstanding and needs eyes on the deploy.
+
+### Decisions captured
+
+- [`0012-two-roasters-primo-probat.md`](./decisions/0012-two-roasters-primo-probat.md)
+
 ## 2026-08-27 — Incident: #7034 shipped with no tracking pushed — the 2026-07-25 fix was never deployed or migrated
 
 ### Work done

@@ -6,226 +6,306 @@
 <title>Torque Roast Scheduler</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --black:#111110;--off-white:#f5f4ef;--warm-gray:#e8e7e2;--mid-gray:#999892;--border:#d8d7d2;
-  --green:#2d6a4f;--green-light:#d8f3dc;--red:#9b2226;--red-light:#ffe5e5;
-  --amber:#b5451b;--amber-light:#fff3e0;--blue:#1d4e89;--blue-light:#dbeafe;
-  --font-mono:'IBM Plex Mono',monospace;--font-sans:'IBM Plex Sans',sans-serif;
+  /* Torque design system */
+  --cream:#FFFEF0;--cream-dark:#EDEAE0;--cream-hi:#FFF5D2;
+  --black:#100000;--brown:#30231A;--orange:#E58825;--orange-dark:#5C3311;
+  --off-white:#EDEAE0;--warm-gray:#EDEAE0;--border:#100000;
+  --green:#187838;--green-light:#DFF3E4;--red:#B23A2E;--red-light:#FBE7E4;--red-ink:#7a2a20;
+  --amber:#E8A010;--amber-light:#FDF3DC;--blue:#30231A;--blue-light:#EDEAE0;
+  /* muted is for TRUE secondary metadata only - timestamps, helper captions.
+     Never for counts, quantities or sizes: those are --black. */
+  --muted:rgba(48,35,26,.6);--mid-gray:rgba(48,35,26,.6);
+  --hairline:rgba(16,0,0,.1);
+  --font-display:'Hepta Slab',Georgia,serif;
+  --font-sans:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --font-mono:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --r-card:14px;--r-ctl:8px;--r-pill:999px;
 }
-body{font-family:var(--font-sans);background:var(--off-white);color:var(--black);min-height:100vh}
-.header{background:var(--black);color:white;padding:.875rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;position:sticky;top:0;z-index:100}
-.header-left{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-.logo{font-family:var(--font-mono);font-size:.75rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:white;white-space:nowrap}
-.date-badge{font-family:var(--font-mono);font-size:.7rem;color:rgba(255,255,255,.45);letter-spacing:.05em}
-.stale-warn{font-family:var(--font-mono);font-size:.7rem;background:#9b2226;color:white;padding:.25rem .6rem;border-radius:4px;display:none;cursor:pointer;white-space:nowrap}
-.tabs{display:flex;gap:.25rem;flex-wrap:wrap}
-.tab{padding:.375rem .875rem;border-radius:4px;cursor:pointer;font-size:.75rem;font-weight:500;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.55);background:none;font-family:var(--font-sans);transition:all .15s;white-space:nowrap}
-.tab:hover{color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.3)}
-.tab.active{background:white;color:var(--black);border-color:white;font-weight:600}
-.toolbar{padding:.625rem 1.5rem;display:flex;align-items:center;gap:.75rem;background:white;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.btn{padding:.4rem 1rem;border-radius:4px;cursor:pointer;font-size:.8rem;font-weight:500;font-family:var(--font-sans);border:none;transition:all .15s;white-space:nowrap}
-.btn-primary{background:var(--black);color:white}
-.btn-primary:hover{background:#333}
-.btn-primary:disabled{background:var(--mid-gray);cursor:not-allowed}
-.btn-danger{background:var(--red);color:white}
-.btn-danger:hover{background:#7a1a1d}
-.btn-secondary{background:white;color:var(--black);border:1px solid var(--border)}
-.btn-secondary:hover{background:var(--off-white)}
-.btn-ghost{background:none;border:1px dashed var(--border);color:var(--mid-gray)}
-.btn-ghost:hover{border-color:var(--black);color:var(--black)}
-.btn-sm{padding:.25rem .6rem;font-size:.72rem}
-.btn-lg{padding:.6rem 1.4rem;font-size:.92rem;font-weight:700;box-shadow:0 0 0 3px rgba(140,20,25,.25);animation:pulseFulfill 1.6s ease-in-out infinite}
-@keyframes pulseFulfill{0%,100%{box-shadow:0 0 0 3px rgba(140,20,25,.18)}50%{box-shadow:0 0 0 6px rgba(140,20,25,.32)}}
-.status-text{font-family:var(--font-mono);font-size:.7rem;color:var(--mid-gray);margin-left:auto}
-.view{display:none;padding:1.25rem 1.5rem;max-width:1200px}
+body{font-family:var(--font-sans);background:var(--cream-dark);color:var(--black);min-height:100vh}
+.header{background:var(--brown);color:var(--cream);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{font-family:var(--font-display);font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--cream);white-space:nowrap;text-transform:none}
+.date-badge{font-size:12px;color:rgba(255,254,240,.55)}
+.stale-warn{font-size:12px;font-weight:700;background:var(--red);color:var(--cream);padding:6px 12px;border-radius:var(--r-pill);display:none;cursor:pointer;white-space:nowrap}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{padding:8px 14px;border-radius:var(--r-pill);cursor:pointer;font-size:12px;font-weight:700;border:1px solid rgba(255,254,240,.25);color:rgba(255,254,240,.7);background:rgba(255,254,240,.08);font-family:var(--font-sans);transition:all .15s;white-space:nowrap}
+.tab:hover{color:var(--cream);border-color:rgba(255,254,240,.5)}
+.tab.active{background:var(--cream);color:var(--black);border-color:var(--cream)}
+.toolbar{padding:12px 20px;display:flex;align-items:center;gap:10px;background:var(--cream);border-bottom:2px solid var(--black);flex-wrap:wrap}
+.btn{padding:9px 18px;border-radius:var(--r-pill);cursor:pointer;font-size:13px;font-weight:700;font-family:var(--font-sans);border:2px solid var(--black);background:var(--cream);color:var(--black);transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--black);color:var(--cream);border-color:var(--black);padding:11px 18px}
+.btn-primary:hover{background:var(--brown);border-color:var(--brown)}
+.btn-primary:disabled{background:var(--muted);border-color:var(--muted);cursor:not-allowed}
+.btn-danger{background:var(--cream);color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:var(--cream)}
+.btn-secondary{background:var(--cream);color:var(--black);border-color:var(--black)}
+.btn-secondary:hover{background:var(--cream-dark)}
+.btn-ghost{background:none;border:1.5px dashed var(--black);color:var(--black)}
+.btn-ghost:hover{background:var(--cream-dark)}
+.btn-sm{padding:6px 14px;font-size:12px;border-width:2px}
+.btn-lg{padding:12px 22px;font-size:14px;font-weight:700;background:var(--orange);color:var(--black);border-color:var(--orange);box-shadow:0 0 0 3px rgba(229,136,37,.22);animation:pulseFulfill 1.6s ease-in-out infinite}
+@keyframes pulseFulfill{0%,100%{box-shadow:0 0 0 3px rgba(229,136,37,.22)}50%{box-shadow:0 0 0 7px rgba(229,136,37,.34)}}
+.status-text{font-size:12px;color:var(--muted);margin-left:auto}
+.view{display:none;padding:22px 20px;max-width:1200px}
 .view.active{display:block}
-.alert{padding:.625rem 1rem;border-radius:6px;font-size:.8rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.5rem;line-height:1.5;flex-wrap:wrap}
-.alert-red{background:var(--red-light);color:var(--red);border:1px solid #ffb3b3}
-.alert-amber{background:var(--amber-light);color:var(--amber);border:1px solid #ffcc99}
-.alert-green{background:var(--green-light);color:var(--green);border:1px solid #95d5b2}
-.alert-blue{background:var(--blue-light);color:var(--blue);border:1px solid #93c5fd}
-.summary-row{display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap}
-.summary-card{background:white;border:1px solid var(--border);border-radius:6px;padding:.75rem 1.25rem;flex:1;min-width:120px}
-.summary-label{font-family:var(--font-mono);font-size:.65rem;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem}
-.summary-value{font-family:var(--font-mono);font-size:1.35rem;font-weight:600;color:var(--black);line-height:1}
-.summary-sub{font-size:.7rem;color:var(--mid-gray);margin-top:.2rem}
-.sort-bar{display:flex;align-items:center;gap:.75rem;margin-bottom:.875rem;flex-wrap:wrap}
-.sort-bar label{font-family:var(--font-mono);font-size:.7rem;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.07em}
-.sort-bar select{padding:.3rem .6rem;border:1px solid var(--border);border-radius:4px;font-size:.8rem;background:white;font-family:var(--font-sans);cursor:pointer}
-.table-wrap{background:white;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:1rem;overflow-x:auto}
+.alert{padding:12px 16px;border-radius:12px;font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px;line-height:1.5;flex-wrap:wrap;border:2px solid var(--black)}
+.alert-red{background:var(--red-light);color:var(--red-ink);border-color:var(--red)}
+.alert-amber{background:var(--amber-light);color:var(--black);border-color:var(--amber)}
+.alert-green{background:var(--green-light);color:var(--black);border-color:var(--green)}
+.alert-blue{background:var(--cream-hi);color:var(--black);border-color:var(--black)}
+
+/* ---- summary cards: number and label on ONE line, so the list starts higher ---- */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.summary-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:10px 16px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
+.summary-card:first-child{background:var(--cream-hi)}
+.summary-value{font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--black);line-height:1;order:1}
+.summary-label{font-size:12px;font-weight:700;color:var(--muted);line-height:1.2;order:2;text-transform:none;letter-spacing:0}
+.summary-sub{font-size:11px;color:var(--muted);order:3;flex-basis:100%;margin-top:2px}
+/* stacked variant, for cards where a caption matters more than compactness */
+.summary-card.stacked{display:block}
+.summary-card.stacked .summary-label{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+.summary-card.stacked .summary-value{display:block;font-size:30px;line-height:1.1}
+.summary-card.stacked .summary-sub{display:block;margin-top:2px}
+
+.sort-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.sort-bar label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.sort-bar select{padding:8px 12px;border:2px solid var(--black);border-radius:var(--r-ctl);font-size:12px;font-weight:700;background:var(--cream);color:var(--black);font-family:var(--font-sans);cursor:pointer}
+.table-wrap{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);overflow:hidden;margin-bottom:14px;overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:500px}
-th{text-align:left;padding:.6rem 1rem;font-family:var(--font-mono);font-size:.65rem;font-weight:500;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:#fafaf8;white-space:nowrap}
-td{padding:.6rem 1rem;font-size:.85rem;border-bottom:1px solid #f0efeb;vertical-align:middle}
+th{text-align:left;padding:10px 16px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--black);background:var(--cream-dark);white-space:nowrap}
+td{padding:10px 16px;font-size:13px;color:var(--black);border-bottom:1px solid var(--hairline);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr.done-row td{opacity:.35}
+tr.done-row td{opacity:.45}
 tr.done-row td:first-child{opacity:1}
-.tfoot-row td{font-family:var(--font-mono);font-size:.8rem;font-weight:600;background:#fafaf8;border-top:2px solid var(--border);padding:.6rem 1rem}
-td input[type="number"]{width:68px;padding:.25rem .4rem;border:1px solid var(--border);border-radius:3px;font-size:.82rem;font-family:var(--font-mono);background:var(--off-white)}
-td input[type="number"]:focus{outline:2px solid var(--black);border-color:transparent}
-td input[type="checkbox"]{width:15px;height:15px;cursor:pointer;accent-color:var(--black)}
-td select{padding:.25rem .4rem;border:1px solid var(--border);border-radius:3px;font-size:.82rem;background:var(--off-white);max-width:220px}
-.lock-btn{background:none;border:1px solid var(--border);border-radius:3px;padding:.15rem .5rem;cursor:pointer;font-size:.7rem;color:var(--mid-gray);font-family:var(--font-mono);white-space:nowrap}
-.lock-btn.locked{background:var(--amber-light);border-color:#ffcc99;color:var(--amber)}
-.badge{display:inline-block;padding:.15rem .5rem;border-radius:3px;font-size:.7rem;font-weight:600;font-family:var(--font-mono);white-space:nowrap}
+.tfoot-row td{font-size:13px;font-weight:700;background:var(--cream-dark);border-top:2px solid var(--black);padding:10px 16px}
+td input[type="number"],td input[type="text"]{width:68px;padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-size:13px;font-weight:700;font-family:var(--font-sans);background:var(--cream);color:var(--black)}
+td input[type="number"]:focus,td input[type="text"]:focus{outline:2px solid var(--orange);outline-offset:1px}
+td input[type="checkbox"]{width:20px;height:20px;cursor:pointer;accent-color:var(--green)}
+td select{padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-size:13px;background:var(--cream);color:var(--black);max-width:240px}
+.lock-btn{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-pill);padding:6px 12px;cursor:pointer;font-size:11px;font-weight:700;color:var(--black);font-family:var(--font-sans);white-space:nowrap}
+.lock-btn.locked{background:var(--amber-light);border-color:var(--amber);color:var(--black)}
+.badge{display:inline-block;padding:4px 10px;border-radius:var(--r-pill);font-size:11px;font-weight:700;font-family:var(--font-sans);white-space:nowrap}
 .badge-green{background:var(--green-light);color:var(--green)}
-.badge-blue{background:var(--blue-light);color:var(--blue)}
-.badge-amber{background:var(--amber-light);color:var(--amber)}
-.badge-gray{background:var(--warm-gray);color:#555}
+.badge-blue{background:var(--cream-hi);color:var(--black)}
+.badge-amber{background:var(--amber-light);color:var(--black)}
+.badge-gray{background:var(--cream-dark);color:var(--black)}
 .badge-red{background:var(--red-light);color:var(--red)}
-.source-tag{font-family:var(--font-mono);font-size:.65rem;padding:.1rem .4rem;border-radius:3px;background:var(--warm-gray);color:#555;white-space:nowrap}
+.source-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-pill);background:var(--cream-dark);color:var(--black);white-space:nowrap}
 .source-tag.manual{background:var(--green-light);color:var(--green)}
-.empty{text-align:center;padding:2.5rem;color:var(--mid-gray);font-size:.85rem;font-family:var(--font-mono)}
-.progress-wrap{display:flex;align-items:center;gap:.5rem}
-.progress-bar{flex:1;height:6px;background:var(--warm-gray);border-radius:3px;overflow:hidden;min-width:40px}
-.progress-fill{height:100%;background:var(--green);border-radius:3px;transition:width .3s}
-.progress-text{font-family:var(--font-mono);font-size:.72rem;color:var(--mid-gray);white-space:nowrap}
-.date-chip{font-family:var(--font-mono);font-size:.65rem;padding:.1rem .4rem;border-radius:3px;background:var(--blue-light);color:var(--blue);white-space:nowrap}
-.date-chip.old{background:var(--amber-light);color:var(--amber)}
-.counter-cell{display:flex;align-items:center;gap:.3rem}
-.counter-btn{width:24px;height:24px;border-radius:3px;border:1px solid var(--border);background:white;cursor:pointer;font-size:.9rem;font-weight:600;display:flex;align-items:center;justify-content:center;color:var(--black);flex-shrink:0}
-.counter-btn:hover{background:var(--warm-gray)}
-.counter-val{font-family:var(--font-mono);font-size:.85rem;min-width:28px;text-align:center}
-.form-card{background:white;border:1px solid var(--border);border-radius:6px;padding:1.25rem;margin-bottom:1rem}
-.form-card-title{font-family:var(--font-mono);font-size:.7rem;font-weight:600;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem;padding-bottom:.625rem;border-bottom:1px solid var(--border)}
-.form-row{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.75rem}
-.form-group{display:flex;flex-direction:column;gap:.3rem}
-.form-group label{font-family:var(--font-mono);font-size:.65rem;font-weight:500;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.07em}
-.form-group select,.form-group input[type="text"],.form-group input[type="number"]{padding:.4rem .6rem;border:1px solid var(--border);border-radius:4px;font-size:.85rem;font-family:var(--font-sans);background:var(--off-white)}
-.form-group select:focus,.form-group input:focus{outline:2px solid var(--black);border-color:transparent;background:white}
-.form-msg{font-size:.78rem;font-family:var(--font-mono);margin-top:.5rem}
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.progress-wrap{display:flex;align-items:center;gap:8px}
+.progress-bar{flex:1;height:8px;background:var(--cream-dark);border-radius:var(--r-pill);overflow:hidden;min-width:40px}
+.progress-fill{height:100%;background:var(--green);border-radius:var(--r-pill);transition:width .3s}
+.progress-text{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.date-chip{font-size:10px;font-weight:700;padding:3px 8px;border-radius:var(--r-pill);background:var(--cream-dark);color:var(--black);white-space:nowrap}
+.date-chip.old{background:var(--amber-light);color:var(--black)}
+.counter-cell{display:flex;align-items:center;gap:6px}
+.counter-btn{width:40px;height:40px;border-radius:10px;border:2px solid var(--black);background:var(--cream);cursor:pointer;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--black);flex-shrink:0}
+.counter-btn:hover{background:var(--cream-dark)}
+.counter-btn.plus{background:var(--black);color:var(--cream)}
+.counter-btn.plus:hover{background:var(--brown)}
+.counter-val{font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--black);min-width:32px;text-align:center}
+
+/* ---- Bagging / Roasting row cards ---- */
+.row-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);margin-bottom:10px;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.row-card.is-done{opacity:.55}
+.row-card-main{flex:1;min-width:220px}
+.row-title-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row-name{font-size:15px;font-weight:700;color:var(--black);line-height:1.2}
+/* variant chip: plain outlined box, one size down from the name - not a mega pill */
+.size-chip{font-size:13px;font-weight:700;color:var(--black);background:none;border:2px solid var(--black);border-radius:var(--r-ctl);padding:4px 10px;white-space:nowrap}
+.row-note{font-size:12px;line-height:1.4;color:var(--muted);margin-top:3px}
+.row-meta{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+.row-meta b{color:var(--black)}
+.row-progress{display:flex;align-items:center;gap:8px;margin-top:8px;max-width:260px}
+/* both numbers same size, both full-contrast black - the needed number matters too */
+.count-block{text-align:center;min-width:64px}
+.count-main{font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--black);line-height:1;white-space:nowrap}
+.count-main .of{color:var(--black)}
+.count-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.count-done{font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--green);line-height:1}
+.count-need{font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--black);line-height:1}
+.count-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:3px}
+/* machine toggle */
+.machine-toggle{display:inline-flex;gap:3px;align-items:center}
+.machine-btn{font-size:11px;font-weight:700;font-family:var(--font-sans);padding:5px 11px;border-radius:var(--r-pill);border:2px solid var(--black);background:var(--cream);color:var(--black);cursor:pointer;white-space:nowrap}
+.machine-btn.active{background:var(--black);color:var(--cream)}
+.machine-editor{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+.machine-editor input{width:52px;padding:4px 6px;border:2px solid var(--black);border-radius:6px;font:700 12px var(--font-sans);color:var(--black);background:var(--cream);text-align:center}
+.machine-editor.needs-setup{color:var(--red)}
+.machine-editor.needs-setup input{border-color:var(--red);width:56px}
+.math-toggle{font-size:12px;color:var(--orange);background:none;border:none;border-bottom:1px dashed var(--orange);padding:0;cursor:pointer;font-family:var(--font-sans)}
+.math-panel{margin-top:8px;padding:10px 12px;background:var(--cream-dark);border-radius:var(--r-ctl);font-size:12px;line-height:1.6;color:var(--brown)}
+.math-panel b{color:var(--black)}
+
+.form-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:22px;margin-bottom:14px;max-width:640px}
+.form-card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--black)}
+/* min-width:0 on the children is what stops this row overflowing at narrow widths */
+.form-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+.form-row>.form-group{flex:1;min-width:0}
+.form-row>.form-group.narrow{flex:0 0 100px;width:100px}
+.form-group{display:flex;flex-direction:column;gap:5px;min-width:0}
+.form-group label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.form-group select,.form-group input[type="text"],.form-group input[type="number"]{width:100%;max-width:100%;min-width:0;padding:12px;border:2px solid var(--black);border-radius:10px;font-size:14px;font-family:var(--font-sans);background:var(--cream);color:var(--black)}
+.form-group select:focus,.form-group input:focus{outline:2px solid var(--orange);outline-offset:1px}
+.form-msg{font-size:13px;margin-top:8px;font-weight:700}
 .form-msg.ok{color:var(--green)}
 .form-msg.err{color:var(--red)}
-.blend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:.875rem}
-.blend-card{background:white;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+
+.blend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.blend-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);overflow:hidden}
 .blend-card.stale{border-color:var(--red);box-shadow:0 0 0 2px var(--red-light)}
-.blend-card-header{padding:.75rem 1rem;background:#fafaf8;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:.5rem}
-.blend-name{font-family:var(--font-mono);font-size:.8rem;font-weight:600;letter-spacing:.03em}
-.blend-card-body{padding:.875rem 1rem}
-.component-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
-.component-row select{flex:1;min-width:0;font-size:.8rem}
-.component-row input[type="number"]{width:65px;font-family:var(--font-mono)}
-.pct-label{font-family:var(--font-mono);font-size:.75rem;color:var(--mid-gray)}
-.remove-btn{background:none;border:none;color:var(--mid-gray);cursor:pointer;font-size:.9rem;padding:0 .2rem;line-height:1;flex-shrink:0}
+.blend-card-header{padding:12px 16px;background:var(--cream-dark);border-bottom:2px solid var(--black);display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* blend names readable from a few feet away */
+.blend-name{font-family:var(--font-display);font-size:19px;font-weight:800;color:var(--black);letter-spacing:0;line-height:1.2}
+.blend-card-body{padding:14px 16px}
+.component-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.component-row select{flex:1;min-width:0;font-size:13px;padding:6px 8px;border:2px solid var(--black);border-radius:6px;background:var(--cream);color:var(--black)}
+.component-row input[type="number"]{width:65px;padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-weight:700;color:var(--black);background:var(--cream)}
+.pct-label{font-size:12px;color:var(--muted)}
+.remove-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;flex-shrink:0}
 .remove-btn:hover{color:var(--red)}
-.ratio-status{font-family:var(--font-mono);font-size:.68rem;margin-top:.5rem;padding:.3rem .5rem;border-radius:3px}
+.ratio-status{font-size:12px;font-weight:700;margin-top:8px;padding:5px 10px;border-radius:var(--r-pill);display:inline-block}
 .ratio-ok{background:var(--green-light);color:var(--green)}
 .ratio-warn{background:var(--red-light);color:var(--red)}
-.add-comp-btn{font-family:var(--font-mono);font-size:.7rem;color:var(--blue);background:none;border:1px dashed var(--blue);border-radius:3px;padding:.25rem .6rem;cursor:pointer;margin-top:.25rem;display:inline-block}
-.add-comp-btn:hover{background:var(--blue-light)}
-.batch-inline{display:flex;align-items:center;gap:.3rem}
-.batch-inline input{width:52px;padding:.15rem .35rem;border:1px solid var(--border);border-radius:3px;font-size:.75rem;font-family:var(--font-mono);background:var(--off-white)}
-.batch-inline span{font-family:var(--font-mono);font-size:.7rem;color:var(--mid-gray)}
-.section-header{font-family:var(--font-mono);font-size:.7rem;font-weight:600;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.1em;margin:1.25rem 0 .625rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.add-comp-btn{font-size:12px;font-weight:700;color:var(--black);background:none;border:1.5px dashed var(--black);border-radius:var(--r-pill);padding:6px 14px;cursor:pointer;margin-top:6px;display:inline-block}
+.add-comp-btn:hover{background:var(--cream-dark)}
+.batch-inline{display:flex;align-items:center;gap:5px}
+.batch-inline input{width:56px;padding:4px 6px;border:2px solid var(--black);border-radius:6px;font-size:12px;font-weight:700;color:var(--black);background:var(--cream)}
+.batch-inline span{font-size:12px;color:var(--muted)}
+.section-header{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:22px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--black);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.section-header .hint{text-transform:none;letter-spacing:0;font-weight:400;font-size:12px}
+.link-btn{font-size:12px;font-weight:700;color:var(--orange);background:none;border:none;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)}
+/* single origin batch sizes, by roaster */
+.origin-grid-head,.origin-grid-row{display:grid;grid-template-columns:minmax(160px,1fr) 104px 96px 104px 96px;gap:8px;align-items:center;padding:10px 16px}
+.origin-grid-head{background:var(--cream-dark);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.origin-grid-row{border-top:1px solid var(--hairline);font-size:13px;color:var(--black)}
+.origin-grid-row input{width:100%;max-width:78px;padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-size:13px;font-weight:700;color:var(--black);background:var(--cream)}
+.origin-grid-row input.unset{border-color:var(--red)}
+.origin-name{font-weight:500;min-width:0;overflow-wrap:anywhere}
+
 /* B2B */
-.company-card{background:white;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:1rem}
-.company-header{padding:.875rem 1.25rem;background:#fafaf8;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.company-name{font-family:var(--font-mono);font-size:.9rem;font-weight:600}
-.company-meta{font-size:.78rem;color:var(--mid-gray);margin-top:.2rem}
-.company-meta a{color:var(--blue);text-decoration:none}
-.help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.5rem}
-.help-card{background:white;border:1px solid var(--border);border-radius:6px;padding:1rem 1.25rem}
-.help-card-title{font-family:var(--font-mono);font-size:.75rem;font-weight:600;margin-bottom:.625rem;display:flex;align-items:center;gap:.5rem}
-.help-card p,.help-card li{font-size:.82rem;line-height:1.6;color:#444}
-.help-card ul{padding-left:1rem;margin-top:.25rem}
-.help-card li{margin-bottom:.2rem}
-.help-note{background:var(--amber-light);border:1px solid #ffcc99;border-radius:6px;padding:.75rem 1rem;font-size:.8rem;color:var(--amber);font-family:var(--font-mono)}
-.stale-detail{font-size:.75rem;margin-top:.25rem;font-family:var(--font-mono);opacity:.85}
-/* SHIP (B2B cubic shipping) */
-.ship-bar{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
-.ship-bar-title{font-family:var(--font-mono);font-size:.8rem;font-weight:600}
+.company-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);overflow:hidden;margin-bottom:22px}
+.company-header{padding:14px 18px;background:var(--cream-dark);border-bottom:2px solid var(--black);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.company-name{font-size:15px;font-weight:700;color:var(--black)}
+.company-meta{font-size:12px;line-height:1.4;color:var(--muted);margin-top:2px}
+.company-meta a{color:var(--orange);text-decoration:none}
+/* compact single-line order lines: "2x Dark Drop - 5lb Bulk Bag" */
+.b2b-line{padding:13px 18px;border-top:1px solid var(--hairline);font-size:15px;font-weight:500;line-height:1.4;color:var(--black)}
+.b2b-line:first-child{border-top:none}
+.b2b-line-qty{font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--black)}
+
+.help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px}
+.help-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:16px 18px}
+.help-card-title{font-size:13px;font-weight:700;color:var(--black);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.help-card p,.help-card li{font-size:13px;line-height:1.5;color:#3a2c1f}
+.help-card ul{padding-left:16px;margin-top:4px}
+.help-card li{margin-bottom:4px}
+.help-note{background:var(--cream-hi);border:2px solid var(--black);border-radius:var(--r-card);padding:14px 18px;font-size:13px;line-height:1.5;color:var(--black)}
+.stale-detail{font-size:12px;margin-top:4px;opacity:.85}
+
+/* SHIP */
+.ship-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.ship-bar-title{font-size:13px;font-weight:700;color:var(--black)}
 .ship-bar-spacer{margin-left:auto}
-.ship-order-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 1rem;border-bottom:1px solid #f0efeb;flex-wrap:wrap}
+.ship-order-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-bottom:1px solid var(--hairline);flex-wrap:wrap}
 .ship-order-row:last-child{border-bottom:none}
-.ship-addr{font-size:.8rem;color:#444;line-height:1.5}
-.ship-addr-name{font-weight:600;color:var(--black)}
-.ship-box{border:1px solid var(--border);border-radius:6px;background:white;margin-bottom:.75rem;overflow:hidden}
-.ship-box-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.55rem .9rem;background:#fafaf8;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.ship-box-title{font-family:var(--font-mono);font-weight:600;font-size:.78rem}
-.ship-box-body{padding:.6rem .9rem;font-size:.82rem}
-.ship-content-line{display:flex;gap:.5rem;padding:.15rem 0}
-.ship-content-qty{font-family:var(--font-mono);font-weight:600;min-width:34px}
-.ship-actionbar{background:white;border:1px solid var(--border);border-radius:6px;padding:1rem 1.25rem;margin-top:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-.ship-total{font-family:var(--font-mono);font-size:1.15rem;font-weight:600;white-space:nowrap}
-.ship-total span{font-size:.6rem;color:var(--mid-gray);display:block;text-transform:uppercase;letter-spacing:.07em;font-weight:500}
-.ship-track{font-family:var(--font-mono);font-size:.78rem}
-.ship-track a{color:var(--blue);text-decoration:none}
-.ship-step{font-size:.8rem;color:#444;line-height:1.5}
+.ship-addr{font-size:13px;line-height:1.4;color:var(--muted)}
+.ship-addr-name{font-size:16px;font-weight:700;color:var(--black)}
+.ship-box{border:2px solid var(--black);border-radius:var(--r-card);background:var(--cream);margin-bottom:12px;overflow:hidden}
+.ship-box-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:var(--cream-dark);border-bottom:2px solid var(--black);flex-wrap:wrap}
+.ship-box-title{font-weight:700;font-size:13px;color:var(--black)}
+.ship-box-body{padding:10px 16px;font-size:13px;color:var(--black)}
+.ship-content-line{display:flex;gap:8px;padding:3px 0}
+.ship-content-qty{font-family:var(--font-display);font-weight:800;color:var(--black);min-width:34px}
+.ship-actionbar{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:16px 18px;margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.ship-total{font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--black);white-space:nowrap}
+.ship-total span{font-family:var(--font-sans);font-size:10px;color:var(--muted);display:block;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+.ship-track{font-size:13px;color:var(--black)}
+.ship-track a{color:var(--orange);text-decoration:none}
+.ship-step{font-size:13px;color:var(--black);line-height:1.5}
+
 @media print{
   .header,.toolbar,#bagging,#addorder,#blends,#b2b,#ship,#help,.sort-bar{display:none!important}
   #roasting{display:block!important;padding:0}
   .summary-row{display:none}
   body{background:white}
-  .table-wrap{border:1px solid #ccc;box-shadow:none}
+  .table-wrap,.row-card{border:1px solid #ccc;box-shadow:none}
 }
 @media(max-width:640px){
-  .header{padding:.75rem 1rem}
-  .view{padding:1rem}
-  td,th{padding:.45rem .6rem;font-size:.78rem}
-  .summary-card{min-width:100px}
+  .header{padding:12px 14px}
+  .view{padding:16px 14px}
+  td,th{padding:8px 10px;font-size:12px}
+  .summary-card{min-width:0}
   .blend-grid{grid-template-columns:1fr}
   .help-grid{grid-template-columns:1fr}
   .status-text{display:none}
+  .origin-grid-head{display:none}
+  .origin-grid-row{grid-template-columns:1fr 1fr;gap:6px}
 }
 
 /* SCHEDULE TAB */
-.schedule-table{width:100%;border-collapse:collapse;background:white;border-radius:6px;overflow:hidden;border:1px solid var(--border)}
-.schedule-table th{font-family:var(--font-mono);font-size:.78rem;font-weight:700;color:var(--black);text-transform:uppercase;letter-spacing:.06em;padding:.75rem 1rem;border-bottom:1px solid var(--border);background:#fafaf8;text-align:left}
-.schedule-table td{padding:.6rem 1rem;border-bottom:1px solid #f0efeb;vertical-align:middle;font-size:.85rem}
-.schedule-table tr:last-child td{border-bottom:none}
-.schedule-table tr.week-past td{color:var(--mid-gray);background:#fafaf8}
-.schedule-table tr.week-current{background:var(--amber-light)}
-.schedule-table tr.week-current td{font-weight:500}
-.week-label{font-family:var(--font-mono);font-size:.75rem;white-space:nowrap}
-.schedule-table select{width:100%;padding:.3rem .5rem;border:1px solid var(--border);border-radius:3px;font-size:.82rem;background:var(--off-white);font-family:var(--font-sans)}
-.schedule-table select:focus{outline:2px solid var(--black);border-color:transparent;background:white}
-.save-row-btn{font-family:var(--font-mono);font-size:.68rem;padding:.2rem .5rem;border:1px solid var(--border);border-radius:3px;background:white;cursor:pointer;white-space:nowrap}
-.save-row-btn:hover{background:var(--black);color:white;border-color:var(--black)}
+.schedule-list{display:flex;flex-direction:column;gap:10px}
+.week-row{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:14px 18px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.week-row.week-current{background:var(--cream-hi)}
+.week-row.week-past{background:var(--cream-dark)}
+.week-row-head{min-width:140px}
+.week-label{font-size:13px;font-weight:700;color:var(--black);white-space:nowrap}
+/* stacked label + full-width select: long single-origin names must not truncate */
+.week-picks{flex:1;display:flex;flex-direction:column;gap:8px;min-width:300px}
+.pick-row{display:flex;align-items:center;gap:10px}
+.pick-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);width:82px;flex-shrink:0}
+.pick-row select{flex:1;width:0;min-width:0;box-sizing:border-box;padding:7px 10px;border:2px solid var(--black);border-radius:var(--r-ctl);font-size:13px;font-weight:700;font-family:var(--font-sans);background:var(--cream);color:var(--black)}
+.pick-row select:focus{outline:2px solid var(--orange);outline-offset:1px}
+.pick-static{flex:1;min-width:0;font-size:13px;font-weight:700;line-height:1.3;color:var(--black)}
+.save-row-btn{font-size:12px;font-weight:700;padding:8px 14px;border:2px solid var(--black);border-radius:var(--r-pill);background:var(--cream);color:var(--black);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)}
+.save-row-btn:hover{background:var(--black);color:var(--cream)}
 .save-row-btn.saved{background:var(--green-light);color:var(--green);border-color:var(--green)}
-.current-week-card{background:var(--amber-light);border:1px solid #ffcc99;border-radius:6px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;gap:2rem;flex-wrap:wrap}
-.cwc-item{display:flex;flex-direction:column;gap:.2rem}
-.cwc-label{font-family:var(--font-mono);font-size:.65rem;color:var(--amber);text-transform:uppercase;letter-spacing:.08em}
-.cwc-value{font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:var(--black)}
-
+.current-week-card{background:var(--cream-hi);border:2px solid var(--black);border-radius:var(--r-card);padding:16px 20px;margin-bottom:16px;display:flex;gap:28px;flex-wrap:wrap;align-items:center}
+.cwc-item{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cwc-label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.cwc-value{font-family:var(--font-display);font-size:18px;font-weight:800;line-height:1.3;color:var(--black)}
 
 /* MIX GUIDE TAB */
-.mix-selector{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
-.mix-selector-btn{font-family:var(--font-mono);font-size:.8rem;font-weight:600;padding:.4rem 1rem;border-radius:6px;border:1.5px solid var(--border);background:white;cursor:pointer;transition:all .15s;color:var(--mid-gray)}
-.mix-selector-btn:hover{border-color:var(--black);color:var(--black)}
-.mix-selector-btn.active{background:var(--black);color:white;border-color:var(--black)}
-/* calculator */
-.mix-calc{background:white;border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;max-width:700px;margin-bottom:1rem}
-.mix-calc-title{font-family:var(--font-mono);font-size:.65rem;font-weight:600;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
-.mix-calc-inputs{display:flex;gap:1.5rem;align-items:flex-end}
-.mix-calc-field{display:flex;flex-direction:column;gap:.25rem}
-.mix-calc-field label{font-family:var(--font-mono);font-size:.62rem;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
-.mix-calc-field input{width:72px;padding:.4rem .5rem;border:1px solid var(--border);border-radius:5px;font-size:1rem;font-family:var(--font-mono);font-weight:600;background:var(--off-white);text-align:center}
-.mix-calc-field input:focus{outline:2px solid var(--black);border-color:transparent;background:white}
-.mix-calc-total-line{font-family:var(--font-mono);font-size:.72rem;color:var(--mid-gray);margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)}
-/* blend card */
-.mix-card{background:white;border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.5rem;max-width:700px}
-.mix-blend-name{font-family:var(--font-mono);font-size:1.5rem;font-weight:700;color:var(--black);letter-spacing:-.01em;margin-bottom:.875rem;line-height:1;padding-bottom:.75rem;border-bottom:2px solid var(--border)}
-.mix-component{display:flex;align-items:center;gap:1rem;padding:.625rem 0;border-bottom:1px solid #f0efeb}
+.mix-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.mix-selector-btn{font-size:13px;font-weight:700;padding:9px 16px;border-radius:var(--r-pill);border:2px solid var(--black);background:var(--cream);cursor:pointer;transition:all .15s;color:var(--black);font-family:var(--font-sans)}
+.mix-selector-btn:hover{background:var(--cream-dark)}
+.mix-selector-btn.active{background:var(--black);color:var(--cream)}
+.mix-calc{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:18px;max-width:640px;margin-bottom:16px}
+.mix-calc-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--black)}
+.mix-calc-inputs{display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap}
+.mix-calc-field{display:flex;flex-direction:column;gap:4px}
+.mix-calc-field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
+/* explicit black on cream - qty values must always render visibly */
+.mix-calc-field input{width:72px;padding:8px;border:2px solid var(--black);border-radius:var(--r-ctl);font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--black);background:var(--cream);text-align:center;-webkit-text-fill-color:var(--black);opacity:1}
+.mix-calc-field input:focus{outline:2px solid var(--orange);outline-offset:1px}
+.mix-calc-total-line{font-size:12px;color:var(--muted);margin-top:12px;padding-top:8px;border-top:1px solid var(--hairline)}
+.mix-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:20px 24px;max-width:640px}
+.mix-blend-name{font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--black);margin-bottom:6px;line-height:1;padding-bottom:12px;border-bottom:2px solid var(--black)}
+.mix-component{display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--hairline)}
 .mix-component:last-child{border-bottom:none}
-.mix-pct{font-family:var(--font-mono);font-size:1.6rem;font-weight:700;color:var(--black);line-height:1;min-width:80px;flex-shrink:0}
+.mix-pct{font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--orange);line-height:1;min-width:90px;flex-shrink:0}
 .mix-coffee-info{flex:1;min-width:0}
-.mix-coffee-name{font-family:var(--font-sans);font-size:1rem;font-weight:600;color:var(--black);line-height:1.2}
-.mix-weight{font-family:var(--font-mono);font-size:1rem;font-weight:600;color:var(--black);text-align:left;min-width:120px;flex-shrink:0;white-space:nowrap}
-.mix-weight-g{font-weight:600;color:var(--black);margin-left:.25rem}
-.mix-total{font-family:var(--font-mono);font-size:.72rem;color:var(--mid-gray);margin-top:.75rem;padding-top:.625rem;border-top:1px solid var(--border)}
+.mix-coffee-name{font-family:var(--font-sans);font-size:15px;font-weight:700;color:var(--black);line-height:1.3}
+/* lb/g output close in visual weight to the percentage - readable across the work table */
+.mix-weight{font-family:var(--font-display);font-size:30px;font-weight:800;color:var(--black);text-align:right;min-width:150px;flex-shrink:0;white-space:nowrap;line-height:1}
+.mix-weight-g{font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--black);margin-left:4px}
+.mix-total{font-size:12px;color:var(--muted);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline)}
+.mix-empty{font-size:14px;color:var(--muted);padding:32px;text-align:center}
+
 /* --- Casual access gate --- */
 #tqGate{display:none}
-html.tq-locked #tqGate{display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:var(--off-white)}
+html.tq-locked #tqGate{display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:var(--cream-dark)}
 html.tq-locked body>*:not(#tqGate){display:none!important}
-.tq-gate-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:2rem;width:300px;max-width:90vw;display:flex;flex-direction:column;gap:.75rem;box-shadow:0 4px 24px rgba(0,0,0,.06)}
-.tq-gate-title{font-family:var(--font-sans);font-size:1rem;font-weight:600;color:var(--black);text-align:center}
-.tq-gate-card input{font-family:var(--font-sans);font-size:1rem;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;width:100%;outline:none}
-.tq-gate-card input:focus{border-color:var(--mid-gray)}
-.tq-gate-err{display:none;font-family:var(--font-sans);font-size:.8rem;color:var(--red);text-align:center}
-.tq-gate-card button{font-family:var(--font-sans);font-size:.9rem;font-weight:600;padding:.6rem;border:none;border-radius:6px;background:var(--black);color:#fff;cursor:pointer}
-.mix-empty{font-family:var(--font-mono);font-size:.9rem;color:var(--mid-gray);padding:2rem;text-align:center}
-
+.tq-gate-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);padding:32px;width:300px;max-width:90vw;display:flex;flex-direction:column;gap:12px}
+.tq-gate-title{font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--black);text-align:center}
+.tq-gate-card input{font-family:var(--font-sans);font-size:15px;padding:12px;border:2px solid var(--black);border-radius:10px;width:100%;outline:none;background:var(--cream);color:var(--black)}
+.tq-gate-card input:focus{outline:2px solid var(--orange);outline-offset:1px}
+.tq-gate-err{display:none;font-size:13px;color:var(--red);text-align:center}
+.tq-gate-card button{font-family:var(--font-sans);font-size:14px;font-weight:700;padding:12px;border:2px solid var(--black);border-radius:var(--r-pill);background:var(--black);color:var(--cream);cursor:pointer}
 </style>
 </head>
 <body>
@@ -303,18 +383,8 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
       <option value="date">Order date (oldest first)</option>
     </select>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Done</th><th>Product</th><th>Bag Size</th><th>Source</th>
-          <th>Needed</th><th>Bagged</th><th>Remaining</th><th>Progress</th><th>Oldest Order</th><th>Lock</th>
-        </tr>
-      </thead>
-      <tbody id="baggingBody"><tr><td colspan="10" class="empty">Click "Pull Orders" to load</td></tr></tbody>
-      <tfoot id="baggingFoot"></tfoot>
-    </table>
-  </div>
+  <div id="baggingBody"><div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Click "Pull Orders" to load</div></div>
+  <div id="baggingFoot"></div>
   <div id="archiveSection" style="display:none">
     <div class="section-header">
       Today's Archived
@@ -334,19 +404,12 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
   <div id="blendWarning" style="display:none" class="alert alert-red"></div>
   <div id="staleWarnRoast" style="display:none" class="alert alert-red"></div>
   <div class="summary-row" id="roastSummary"></div>
-  <div class="section-header">Coffee Roasting Plan</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Coffee</th><th>Roasted lbs</th><th>Green lbs</th>
-          <th>Batch size</th><th>Batches Needed</th><th>Batches Done</th><th>Remaining</th><th>Notes</th><th>Lock</th>
-        </tr>
-      </thead>
-      <tbody id="roastingBody"><tr><td colspan="8" class="empty">Load bagging plan first</td></tr></tbody>
-      <tfoot id="roastingFoot"></tfoot>
-    </table>
+  <div class="section-header">
+    <span>Coffee Roasting Plan <span class="hint">— tap Primo/Probat per row to set which roaster</span></span>
+    <button class="link-btn" onclick="gotoBatchSizes()">Batch sizes →</button>
   </div>
+  <div id="roastingBody"><div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Load bagging plan first</div></div>
+  <div id="roastingFoot"></div>
   <div class="section-header">
     Custom One-Time Roasts
     <button class="btn btn-ghost btn-sm" onclick="addCustomRoastRow()">+ Add</button>
@@ -363,12 +426,15 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
 <div id="addorder" class="view">
   <div class="form-card">
     <div class="form-card-title">Add Internal Order</div>
-    <p style="font-size:.8rem;color:var(--mid-gray);margin-bottom:1rem">Add café, wholesale, or staff orders not in Shopify.</p>
+    <p style="font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:18px">For café, wholesale, or staff orders not in Shopify. Shows instantly in Bagging and Roasting.</p>
     <div class="form-row">
       <div class="form-group">
         <label>Coffee</label>
-        <select id="addCoffee" style="min-width:220px"></select>
+        <select id="addCoffee"></select>
       </div>
+    </div>
+    <!-- flex children shrink (min-width:0) instead of forcing the row to overflow -->
+    <div class="form-row">
       <div class="form-group">
         <label>Bag Size</label>
         <select id="addSize">
@@ -376,19 +442,18 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
           <option>45lb Bulk Box</option><option>8 xPods</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group narrow">
         <label>Qty</label>
-        <input type="number" id="addQty" min="1" value="1" style="width:80px">
-      </div>
-      <div class="form-group">
-        <label>Note (optional)</label>
-        <input type="text" id="addNote" placeholder="e.g. Café order" style="width:180px">
-      </div>
-      <div class="form-group">
-        <label>&nbsp;</label>
-        <button class="btn btn-primary" onclick="addManualOrder()">Add to Plan</button>
+        <input type="number" id="addQty" min="1" value="1">
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Note (optional)</label>
+        <input type="text" id="addNote" placeholder="e.g. Café order">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addManualOrder()">Add to plan — appears instantly</button>
     <div class="form-msg" id="addOrderMsg"></div>
   </div>
 </div>
@@ -402,15 +467,17 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
   <div id="staleBlendAlert" style="display:none" class="alert alert-red"></div>
   <div class="section-header">Blends</div>
   <div class="blend-grid" id="blendCards"><div class="empty">Loading...</div></div>
-  <div class="section-header" style="margin-top:1.5rem">
-    Single Origin Batch Sizes
+  <div class="section-header" id="originSettings" style="margin-top:22px">
+    <span>Single Origin Batch Sizes — by roaster
+      <span class="hint">Shrinkage defaults to 15% but is adjustable per coffee, per machine, and persists — edit it here or on the Roasting tab.</span>
+    </span>
     <button class="btn btn-ghost btn-sm" onclick="addOriginRow()">+ Add</button>
   </div>
   <div class="table-wrap">
-    <table>
-      <thead><tr><th>Coffee Name</th><th>Batch Size (lbs)</th><th>Shrinkage %</th><th></th></tr></thead>
-      <tbody id="originsBody"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
-    </table>
+    <div class="origin-grid-head">
+      <span>Coffee</span><span>Primo batch</span><span>Primo shrink</span><span>Probat batch</span><span>Probat shrink</span>
+    </div>
+    <div id="originsBody"><div class="empty">Loading...</div></div>
   </div>
 </div>
 
@@ -421,13 +488,13 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
     <div style="font-family:var(--font-mono);font-size:.7rem;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.1em">B2B Orders — grouped by company</div>
     <button class="btn btn-primary" id="b2bRefreshBtn" onclick="loadB2B()">Refresh B2B</button>
   </div>
-  <div id="b2bBody"><div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">Click "Refresh B2B" to load wholesale orders</div></div>
+  <div id="b2bBody"><div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">Click "Refresh B2B" to load wholesale orders</div></div>
 </div>
 
 <!-- SHIP (B2B Cubic Shipping) -->
 <div id="ship" class="view">
   <div class="summary-row" id="shipSummary"></div>
-  <div id="shipBody"><div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">Loading shippable B2B orders…</div></div>
+  <div id="shipBody"><div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">Loading shippable B2B orders…</div></div>
 </div>
 
 
@@ -440,21 +507,9 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
     <div class="cwc-item"><div class="cwc-label">Classicist</div><div class="cwc-value" id="cwcClassicist">—</div></div>
     <div class="cwc-item"><div class="cwc-label">Espressoist</div><div class="cwc-value" id="cwcEspressoist">—</div></div>
   </div>
-  <div class="table-wrap">
-    <table class="schedule-table">
-      <thead>
-        <tr>
-          <th>Week of</th>
-          <th>Modernist</th>
-          <th>Classicist</th>
-          <th>Espressoist</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="scheduleBody"><tr><td colspan="5" class="empty">Loading schedule...</td></tr></tbody>
-    </table>
-  </div>
-  <div style="margin-top:1rem">
+  <div style="font-size:12px;line-height:1.5;color:var(--muted);margin-bottom:14px">Newest week at top, so what's coming up is the first thing you see. Past weeks are locked history at the bottom.</div>
+  <div class="schedule-list" id="scheduleBody"><div class="empty">Loading schedule...</div></div>
+  <div style="margin-top:14px">
     <button class="btn btn-secondary" onclick="addScheduleWeek()">+ Add Future Week</button>
   </div>
 </div>
@@ -846,7 +901,7 @@ function renderBagging() {
   const tfoot = document.getElementById('baggingFoot')
   const summaryEl = document.getElementById('baggingSummary')
   if (!planData.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">Click "Pull Orders" to load</td></tr>'
+    tbody.innerHTML = '<div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Click "Pull Orders" to load</div>'
     tfoot.innerHTML = ''
     summaryEl.innerHTML = ''
     return
@@ -858,10 +913,10 @@ function renderBagging() {
   const doneCount = planData.filter(r=>r.done).length
 
   summaryEl.innerHTML = `
-    <div class="summary-card"><div class="summary-label">Needed</div><div class="summary-value">${totalNeeded}</div><div class="summary-sub">total bags</div></div>
-    <div class="summary-card"><div class="summary-label">Bagged</div><div class="summary-value">${totalBagged}</div><div class="summary-sub">completed</div></div>
-    <div class="summary-card"><div class="summary-label">Remaining</div><div class="summary-value">${totalRemaining}</div><div class="summary-sub">still to bag</div></div>
-    <div class="summary-card"><div class="summary-label">Lines Done</div><div class="summary-value">${doneCount}</div><div class="summary-sub">of ${planData.length}</div></div>
+    <div class="summary-card"><div class="summary-value">${totalNeeded}</div><div class="summary-label">bags needed</div></div>
+    <div class="summary-card"><div class="summary-value" style="color:var(--green)">${totalBagged}</div><div class="summary-label">bagged</div></div>
+    <div class="summary-card"><div class="summary-value">${totalRemaining}</div><div class="summary-label">remaining</div></div>
+    <div class="summary-card"><div class="summary-value">${doneCount}<span style="font-size:16px;color:var(--muted)">/${planData.length}</span></div><div class="summary-label">lines done</div></div>
   `
 
   tbody.innerHTML = sorted.map(row => {
@@ -871,33 +926,38 @@ function renderBagging() {
     const pct = needed>0 ? Math.min(100,Math.round(bagged/needed*100)) : 0
     const isOld = row.oldest_order_date && row.oldest_order_date < todayStr
     const dateLabel = row.oldest_order_date
-      ? `<span class="date-chip ${isOld?'old':''}">${isOld?'⚠ ':''}${row.oldest_order_date}</span>` : ''
-    return `<tr class="${row.done?'done-row':''}" id="row-${row.id}">
-      <td><input type="checkbox" ${row.done?'checked':''} onchange="toggleDone('${row.id}',this.checked)"></td>
-      <td style="font-weight:500">${row.product_name}${row.note?`<br><span style="font-size:.72rem;color:var(--mid-gray)">${row.note}</span>`:''}</td>
-      <td style="font-family:var(--font-mono);font-size:.8rem">${row.variant_title}</td>
-      <td><span class="source-tag ${row.source==='manual'?'manual':''}">${row.source==='manual'?'Internal':'Shopify'}</span></td>
-      <td style="font-family:var(--font-mono);font-weight:600">${needed}</td>
-      <td>
-        <div class="counter-cell">
-          <button class="counter-btn" onclick="adjustBagged('${row.id}',-1)">−</button>
-          <span class="counter-val">${bagged}</span>
-          <button class="counter-btn" onclick="adjustBagged('${row.id}',1)">+</button>
+      ? `<span class="date-chip ${isOld?'old':''}">${isOld?'⚠ from ':''}${row.oldest_order_date}</span>` : ''
+    return `<div class="row-card ${row.done?'is-done':''}" id="row-${row.id}">
+      <input type="checkbox" style="width:26px;height:26px;accent-color:var(--green);flex-shrink:0" ${row.done?'checked':''} onchange="toggleDone('${row.id}',this.checked)">
+      <div class="row-card-main">
+        <div class="row-title-line">
+          <span class="row-name">${row.product_name}</span>
+          <span class="size-chip">${row.variant_title}</span>
+          <span class="source-tag ${row.source==='manual'?'manual':''}">${row.source==='manual'?'Internal':'Shopify'}</span>
+          ${dateLabel}
         </div>
-      </td>
-      <td><span class="badge ${remaining===0?'badge-green':'badge-amber'}">${remaining}</span></td>
-      <td>
-        <div class="progress-wrap">
+        ${row.note?`<div class="row-note">${row.note}</div>`:''}
+        <div class="row-progress">
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
           <span class="progress-text">${pct}%</span>
         </div>
-      </td>
-      <td>${dateLabel}</td>
-      <td><button class="lock-btn ${row.locked?'locked':''}" onclick="toggleLock('${row.id}',${!row.locked})">${row.locked?'🔒':'Lock'}</button></td>
-    </tr>`
+      </div>
+      <div class="counter-cell">
+        <button class="counter-btn" onclick="adjustBagged('${row.id}',-1)">−</button>
+        <div class="count-block">
+          <div class="count-main">${bagged}<span class="of"> / ${needed}</span></div>
+          <div class="count-sub">${remaining} left</div>
+        </div>
+        <button class="counter-btn plus" onclick="adjustBagged('${row.id}',1)">+</button>
+      </div>
+      <button class="lock-btn ${row.locked?'locked':''}" onclick="toggleLock('${row.id}',${!row.locked})">${row.locked?'🔒':'Lock'}</button>
+    </div>`
   }).join('')
 
-  tfoot.innerHTML = `<tr class="tfoot-row"><td></td><td>TOTAL</td><td></td><td></td><td>${totalNeeded}</td><td>${totalBagged}</td><td>${totalRemaining}</td><td></td><td></td><td></td></tr>`
+  tfoot.innerHTML = `<div class="row-card" style="background:var(--cream-dark)">
+    <div class="row-card-main"><span class="row-name">TOTAL</span></div>
+    <div class="count-block"><div class="count-main">${totalBagged}<span class="of"> / ${totalNeeded}</span></div><div class="count-sub">${totalRemaining} left</div></div>
+  </div>`
 }
 
 function renderRoasting() {
@@ -907,7 +967,7 @@ function renderRoasting() {
   const warnEl = document.getElementById('blendWarning')
 
   if (!planData.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Load bagging plan first</td></tr>'
+    tbody.innerHTML = '<div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Load bagging plan first</div>'
     tfoot.innerHTML = ''
     summaryEl.innerHTML = ''
     return
@@ -964,55 +1024,153 @@ function renderRoasting() {
     }
   }
 
-  const SHRINKAGE = 1.176
-  let totalGreen=0, totalBatchesNeeded=0, totalBatchesDone=0
+  // Machine settings come from green_coffee_settings. Primo is the baseline:
+  // batch_size_lbs / shrinkage_pct ARE the Primo values. Probat is additive and
+  // its batch size may be unset, in which case we prompt instead of guessing.
+  function machineFor(name) {
+    const gs = greenSettings.find(g=>g.component_name===name)
+    const machine = (gs && gs.roast_machine) === 'probat' ? 'probat' : 'primo'
+    const primoBatch = gs ? Number(gs.batch_size_lbs) : 8
+    const primoShrink = gs && gs.shrinkage_pct != null ? Number(gs.shrinkage_pct) : 15
+    const probatBatch = gs && gs.probat_batch_lbs != null ? Number(gs.probat_batch_lbs) : null
+    const probatShrink = gs && gs.probat_shrink_pct != null ? Number(gs.probat_shrink_pct) : 15
+    const batchSize = machine==='probat' ? probatBatch : primoBatch
+    const shrinkPct = machine==='probat' ? probatShrink : primoShrink
+    return { gs, machine, primoBatch, primoShrink, probatBatch, probatShrink, batchSize, shrinkPct,
+             needsProbatSetup: machine==='probat' && !probatBatch }
+  }
+
+  let totalGreen=0, totalBatchesDone=0, primoNeeded=0, probatNeeded=0
   const rows = Object.entries(coffeeNeeded).sort((a,b)=>a[0].localeCompare(b[0]))
 
   tbody.innerHTML = rows.map(([coffeeName,val])=>{
-    const greenLbs = val.roasted*SHRINKAGE
-    const batchesNeeded = Math.ceil(greenLbs/val.batch_size)
+    const m = machineFor(coffeeName)
+    // green = roasted / (1 - shrink%). At 15% this is the historic 1.176 factor.
+    const shrinkDiv = 1 - (m.shrinkPct/100)
+    const greenLbs = shrinkDiv>0 ? val.roasted/shrinkDiv : 0
+    const canCompute = !!m.batchSize && m.batchSize>0
+    const batchesNeeded = canCompute ? Math.ceil(greenLbs/m.batchSize) : 0
     const prog = roastingProgress[coffeeName]
     const batchesDone = prog?prog.batches_done:0
     const batchesLeft = Math.max(0,batchesNeeded-batchesDone)
     totalGreen+=greenLbs
-    totalBatchesNeeded+=batchesNeeded
     totalBatchesDone+=Math.min(batchesDone,batchesNeeded)
-    return `<tr class="${batchesLeft===0?'done-row':''}">
-      <td style="font-weight:500">${coffeeName}</td>
-      <td style="font-family:var(--font-mono)">${val.roasted.toFixed(1)}</td>
-      <td style="font-family:var(--font-mono)">${greenLbs.toFixed(1)}</td>
-      <td style="font-family:var(--font-mono)">${val.batch_size} lbs</td>
-      <td><span class="badge badge-blue">${batchesNeeded}</span></td>
-      <td>
-        <div class="counter-cell">
-          <button class="counter-btn" onclick="adjustBatches('${coffeeName.replace(/'/g,"\\'")}', -1)">−</button>
-          <span class="counter-val">${batchesDone}</span>
-          <button class="counter-btn" onclick="adjustBatches('${coffeeName.replace(/'/g,"\\'")}', 1)">+</button>
+    if (m.machine==='probat') probatNeeded+=batchesNeeded; else primoNeeded+=batchesNeeded
+    const esc = coffeeName.replace(/'/g,"\\'")
+    const expanded = !!roastMathOpen[coffeeName]
+
+    const editor = m.needsProbatSetup
+      ? `<span class="machine-editor needs-setup">Set Probat batch size:
+           <input type="number" min="1" step="0.5" placeholder="lbs" onchange="setMachineVal('${esc}','probat_batch_lbs',this.value)">
+         </span>`
+      : `<span class="machine-editor">
+           <input type="number" min="1" step="0.5" value="${m.batchSize}" onchange="setMachineVal('${esc}','${m.machine==='probat'?'probat_batch_lbs':'batch_size_lbs'}',this.value)"> lbs/batch ·
+           <input type="number" min="1" max="30" step="0.5" value="${m.shrinkPct}" onchange="setMachineVal('${esc}','${m.machine==='probat'?'probat_shrink_pct':'shrinkage_pct'}',this.value)">% shrink
+         </span>`
+
+    return `<div class="row-card ${batchesLeft===0&&canCompute?'is-done':''}">
+      <div class="row-card-main">
+        <div class="row-name">${coffeeName}</div>
+        <div class="row-meta">
+          <span>Roasted <b>${val.roasted.toFixed(1)}</b> lbs</span>
+          <button class="math-toggle" onclick="toggleRoastMath('${esc}')">Green ${greenLbs.toFixed(1)} lbs ${expanded?'▾':'▸'}</button>
+          <span class="machine-toggle">
+            <button class="machine-btn ${m.machine==='primo'?'active':''}" onclick="setMachine('${esc}','primo')">Primo</button>
+            <button class="machine-btn ${m.machine==='probat'?'active':''}" onclick="setMachine('${esc}','probat')">Probat</button>
+          </span>
+          ${editor}
         </div>
-      </td>
-      <td><span class="badge ${batchesLeft===0?'badge-green':'badge-amber'}">${batchesLeft}</span></td>
-      <td><input type="text" placeholder="Notes..." style="border:none;background:transparent;font-size:.78rem;width:100%;min-width:80px" onfocus="this.style.background='var(--off-white)'" onblur="this.style.background='transparent'"></td>
-      <td><button class="lock-btn ${roastLocks[coffeeName]?'locked':''}" onclick="toggleRoastLock(this.dataset.name)" data-name="${coffeeName}">${roastLocks[coffeeName]?'🔒':'Lock'}</button></td>
-    </tr>`
+        ${expanded?`<div class="math-panel">
+          ${val.roasted.toFixed(1)} roasted lbs ÷ (1 − ${m.shrinkPct}% shrink on ${m.machine==='probat'?'Probat':'Primo'}) = <b>${greenLbs.toFixed(1)} green lbs</b><br>
+          ${canCompute
+            ? `${greenLbs.toFixed(1)} green lbs ÷ ${m.batchSize} lbs/batch = <b>${batchesNeeded} batches</b> (rounded up)`
+            : `<b style="color:var(--red)">No Probat batch size set — set one above to get a batch count.</b>`}
+        </div>`:''}
+      </div>
+      <div class="count-block">
+        <div class="count-need">${canCompute?batchesNeeded:'—'}</div>
+        <div class="count-label">needed</div>
+      </div>
+      <div class="counter-cell">
+        <button class="counter-btn" onclick="adjustBatches('${esc}', -1)">−</button>
+        <div class="count-block" style="min-width:46px">
+          <div class="count-done">${batchesDone}</div>
+          <div class="count-sub">done</div>
+        </div>
+        <button class="counter-btn plus" onclick="adjustBatches('${esc}', 1)">+</button>
+      </div>
+      <div class="count-block" style="min-width:60px">
+        <div class="count-need" style="color:${batchesLeft===0?'var(--green)':'var(--black)'}">${canCompute?batchesLeft:'—'}</div>
+        <div class="count-sub">remaining</div>
+      </div>
+      <button class="lock-btn ${roastLocks[coffeeName]?'locked':''}" onclick="toggleRoastLock(this.dataset.name)" data-name="${coffeeName}">${roastLocks[coffeeName]?'🔒':'Lock'}</button>
+    </div>`
   }).join('')
 
+  const totalBatchesNeeded = primoNeeded + probatNeeded
   const totalLeft = Math.max(0,totalBatchesNeeded-totalBatchesDone)
-  tfoot.innerHTML = `<tr class="tfoot-row">
-    <td>TOTAL</td><td></td>
-    <td style="font-family:var(--font-mono)">${totalGreen.toFixed(1)} lbs</td>
-    <td></td>
-    <td><span class="badge badge-blue">${totalBatchesNeeded}</span></td>
-    <td style="font-family:var(--font-mono)">${totalBatchesDone}</td>
-    <td><span class="badge ${totalLeft===0?'badge-green':'badge-amber'}">${totalLeft}</span></td>
-    <td></td><td></td>
-  </tr>`
+  tfoot.innerHTML = `<div class="row-card" style="background:var(--cream-dark)">
+    <div class="row-card-main"><span class="row-name">TOTAL</span>
+      <div class="row-meta"><span>Green <b>${totalGreen.toFixed(1)}</b> lbs</span></div>
+    </div>
+    <div class="count-block"><div class="count-need">${totalBatchesNeeded}</div><div class="count-label">needed</div></div>
+    <div class="count-block"><div class="count-done">${totalBatchesDone}</div><div class="count-sub">done</div></div>
+    <div class="count-block"><div class="count-need" style="color:${totalLeft===0?'var(--green)':'var(--black)'}">${totalLeft}</div><div class="count-sub">remaining</div></div>
+  </div>`
 
   summaryEl.innerHTML = `
-    <div class="summary-card"><div class="summary-label">Batches Needed</div><div class="summary-value">${totalBatchesNeeded}</div><div class="summary-sub">on 6kg drum</div></div>
-    <div class="summary-card"><div class="summary-label">Batches Done</div><div class="summary-value">${totalBatchesDone}</div><div class="summary-sub">today</div></div>
-    <div class="summary-card"><div class="summary-label">Remaining</div><div class="summary-value">${totalLeft}</div><div class="summary-sub">batches left</div></div>
-    <div class="summary-card"><div class="summary-label">Green lbs</div><div class="summary-value">${totalGreen.toFixed(0)}</div><div class="summary-sub">at 15% shrinkage</div></div>
+    <div class="summary-card stacked"><div class="summary-label">Needed on Primo</div><div class="summary-value">${primoNeeded}</div><div class="summary-sub">batches</div></div>
+    <div class="summary-card stacked"><div class="summary-label">Needed on Probat</div><div class="summary-value">${probatNeeded}</div><div class="summary-sub">batches</div></div>
+    <div class="summary-card stacked"><div class="summary-label">Batches Done</div><div class="summary-value" style="color:var(--green)">${totalBatchesDone}</div><div class="summary-sub">today</div></div>
+    <div class="summary-card stacked"><div class="summary-label">Remaining</div><div class="summary-value">${totalLeft}</div><div class="summary-sub">batches left</div></div>
+    <div class="summary-card stacked"><div class="summary-label">Green lbs</div><div class="summary-value">${totalGreen.toFixed(0)}</div><div class="summary-sub">shrink % set per coffee, per machine</div></div>
   `
+}
+
+// Which roasting rows have their math panel open. View state only, not persisted.
+const roastMathOpen = {}
+function toggleRoastMath(name) {
+  roastMathOpen[name] = !roastMathOpen[name]
+  renderRoasting()
+}
+
+function gotoBatchSizes() {
+  const tabs = document.querySelectorAll('.tab')
+  switchTab('blends', tabs[3])
+  setTimeout(()=>document.getElementById('originSettings')?.scrollIntoView({behavior:'smooth',block:'start'}),50)
+}
+
+// Persist a per-coffee, per-machine batch size or shrink %. Creates the settings
+// row if this coffee has never had one.
+async function setMachineVal(name, field, value) {
+  const num = parseFloat(value)
+  if (isNaN(num) || num<=0) return
+  const gs = greenSettings.find(g=>g.component_name===name)
+  if (gs) {
+    await sb.from('green_coffee_settings').update({[field]:num}).eq('id',gs.id)
+    gs[field] = num
+  } else {
+    const {data} = await sb.from('green_coffee_settings')
+      .insert({component_name:name, batch_size_lbs:8, shrinkage_pct:15, [field]:num}).select().single()
+    if (data) greenSettings.push(data)
+  }
+  renderRoasting()
+  if (typeof renderBlendEditor === 'function') renderBlendEditor()
+}
+
+async function setMachine(name, machine) {
+  const gs = greenSettings.find(g=>g.component_name===name)
+  if (gs) {
+    if (gs.roast_machine === machine) return
+    await sb.from('green_coffee_settings').update({roast_machine:machine}).eq('id',gs.id)
+    gs.roast_machine = machine
+  } else {
+    const {data} = await sb.from('green_coffee_settings')
+      .insert({component_name:name, batch_size_lbs:8, shrinkage_pct:15, roast_machine:machine}).select().single()
+    if (data) greenSettings.push(data)
+  }
+  renderRoasting()
+  if (typeof renderBlendEditor === 'function') renderBlendEditor()
 }
 
 // B2B
@@ -1022,7 +1180,7 @@ async function loadB2B() {
   const summaryEl = document.getElementById('b2bSummary')
   btn.disabled = true
   btn.textContent = 'Loading...'
-  container.innerHTML = '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">Loading B2B orders...</div>'
+  container.innerHTML = '<div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">Loading B2B orders...</div>'
 
   try {
     const res = await fetch('/api/shopify-token?type=b2b')
@@ -1040,7 +1198,7 @@ async function loadB2B() {
     `
 
     if (!companies.length) {
-      container.innerHTML = '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">No B2B orders found in unfulfilled orders</div>'
+      container.innerHTML = '<div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">No B2B orders found in unfulfilled orders</div>'
       return
     }
 
@@ -1056,28 +1214,10 @@ async function loadB2B() {
           </div>
           <span class="badge badge-blue">${company.order_count} order${company.order_count!==1?'s':''}</span>
         </div>
-        <div class="table-wrap" style="margin:0;border:none;border-radius:0">
-          <table>
-            <thead>
-              <tr><th>Product</th><th>Bag Size</th><th>Qty</th></tr>
-            </thead>
-            <tbody>
-              ${company.items.map(item=>`
-                <tr>
-                  <td style="font-weight:500">${item.product_name}</td>
-                  <td style="font-family:var(--font-mono);font-size:.8rem">${item.variant_title}</td>
-                  <td><span class="badge badge-blue">${item.qty}</span></td>
-                </tr>
-              `).join('')}
-            </tbody>
-            <tfoot>
-              <tr class="tfoot-row">
-                <td>Total</td><td></td>
-                <td>${company.items.reduce((s,i)=>s+i.qty,0)} bags</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        ${company.items.map(item=>`
+          <div class="b2b-line"><span class="b2b-line-qty">${item.qty}x</span> ${item.product_name} - ${item.variant_title}</div>
+        `).join('')}
+        <div class="b2b-line" style="background:var(--cream-dark);font-weight:700">${company.items.reduce((s,i)=>s+i.qty,0)} bags total</div>
       </div>
     `).join('')
 
@@ -1193,7 +1333,7 @@ async function loadShipOrders() {
   shipState = null
   const body = document.getElementById('shipBody')
   document.getElementById('shipSummary').innerHTML = ''
-  body.innerHTML = '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">Loading shippable B2B orders…</div>'
+  body.innerHTML = '<div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">Loading shippable B2B orders…</div>'
   try {
     const res = await fetch('/api/shopify-token?type=b2b-ship')
     const data = await res.json()
@@ -1266,7 +1406,7 @@ function renderShipList() {
   }
 
   if (!b2bShipOrders.length) {
-    body.innerHTML = bar + pendBanner + '<div class="empty" style="padding:3rem;background:white;border:1px solid var(--border);border-radius:6px;">No shippable B2B orders in the current unfulfilled set.</div>'
+    body.innerHTML = bar + pendBanner + '<div class="empty" style="padding:3rem;background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);">No shippable B2B orders in the current unfulfilled set.</div>'
     return
   }
 
@@ -1917,14 +2057,20 @@ async function renderBlendEditor() {
     }).join('')
   }
 
+  // Primo columns are the long-standing batch_size_lbs / shrinkage_pct.
+  // Probat batch is nullable on purpose: blank means "not measured yet".
   originsBody.innerHTML = !greenSettings.length
-    ? '<tr><td colspan="4" class="empty">No coffees configured</td></tr>'
-    : greenSettings.map(gs=>`<tr>
-        <td style="font-weight:500">${gs.component_name}</td>
-        <td><input type="number" value="${gs.batch_size_lbs}" min="1" max="20" style="width:70px;font-family:var(--font-mono)" onchange="updateOrigin('${gs.id}','batch_size_lbs',this.value)"></td>
-        <td><input type="number" value="${gs.shrinkage_pct}" min="1" max="30" style="width:65px;font-family:var(--font-mono)" onchange="updateOrigin('${gs.id}','shrinkage_pct',this.value)"></td>
-        <td><button class="remove-btn" onclick="deleteOrigin('${gs.id}')">✕</button></td>
-      </tr>`).join('')
+    ? '<div class="empty">No coffees configured</div>'
+    : greenSettings.map(gs=>`<div class="origin-grid-row">
+        <span class="origin-name">${gs.component_name}</span>
+        <span><input type="number" value="${gs.batch_size_lbs}" min="1" max="40" step="0.5" onchange="updateOrigin('${gs.id}','batch_size_lbs',this.value)"></span>
+        <span><input type="number" value="${gs.shrinkage_pct}" min="1" max="30" step="0.5" onchange="updateOrigin('${gs.id}','shrinkage_pct',this.value)"></span>
+        <span><input type="number" class="${gs.probat_batch_lbs==null?'unset':''}" value="${gs.probat_batch_lbs==null?'':gs.probat_batch_lbs}" placeholder="not set" min="1" max="40" step="0.5" onchange="updateOrigin('${gs.id}','probat_batch_lbs',this.value)"></span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <input type="number" value="${gs.probat_shrink_pct==null?15:gs.probat_shrink_pct}" min="1" max="30" step="0.5" onchange="updateOrigin('${gs.id}','probat_shrink_pct',this.value)">
+          <button class="remove-btn" onclick="deleteOrigin('${gs.id}')">✕</button>
+        </span>
+      </div>`).join('')
 }
 
 async function updateComponent(id,field,value) {
@@ -1956,7 +2102,12 @@ async function addNewBlend() {
   await renderBlendEditor()
 }
 async function updateOrigin(id,field,value) {
-  await sb.from('green_coffee_settings').update({[field]:parseFloat(value)}).eq('id',id)
+  const num = value==='' ? null : parseFloat(value)
+  if (num!==null && (isNaN(num) || num<=0)) return
+  await sb.from('green_coffee_settings').update({[field]:num}).eq('id',id)
+  const gs = greenSettings.find(g=>g.id===id)
+  if (gs) gs[field] = num
+  renderRoasting()
 }
 async function deleteOrigin(id) {
   if (!confirm('Remove this coffee?')) return
@@ -2051,8 +2202,8 @@ async function viewArchive() {
     ? '<tr><td colspan="5" class="empty">Nothing archived today yet</td></tr>'
     : data.map(r=>`<tr>
         <td style="font-weight:500">${r.product_name}</td>
-        <td style="font-family:var(--font-mono);font-size:.8rem">${r.variant_title}</td>
-        <td style="font-family:var(--font-mono)">${r.final_qty}</td>
+        <td style="font-size:.8rem">${r.variant_title}</td>
+        <td style="font-family:var(--font-display);font-weight:800">${r.final_qty}</td>
         <td><span class="source-tag ${r.source==='manual'?'manual':''}">${r.source==='manual'?'Internal':'Shopify'}</span></td>
         <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--mid-gray)">${new Date(r.archived_at).toLocaleTimeString()}</td>
       </tr>`).join('')
@@ -2114,58 +2265,49 @@ function renderSchedule() {
   }
 
   if (!scheduleData.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">No schedule data</td></tr>'
+    tbody.innerHTML = '<div class="empty">No schedule data</div>'
     return
   }
 
-  tbody.innerHTML = scheduleData.map(row => {
+  // Newest week first: what's coming up is the first thing you see.
+  const ordered = [...scheduleData].sort((a,b)=> b.week_start.localeCompare(a.week_start))
+
+  // Label + full-width select stacked per week. Three side-by-side columns
+  // truncate long single-origin names ("Balboa Cauca - Auction Lot, Colombia").
+  const pick = (role, id, val, editable) => {
+    const label = `<span class="pick-label">${role}</span>`
+    if (!editable) return `<div class="pick-row">${label}<div class="pick-static">${val || '—'}</div></div>`
+    const known = val && !allCoffees.includes(val)
+      ? `<option value="${val}" selected>${val}</option>` : ''
+    return `<div class="pick-row">${label}
+      <select id="${id}" onchange="markRowDirty('${id.split('-').slice(1).join('-')}')">
+        <option value="">— select —</option>
+        ${known}
+        ${allCoffees.map(c=>`<option value="${c}" ${c===val?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>`
+  }
+
+  tbody.innerHTML = ordered.map(row => {
     const isPast = row.week_start < currentWeek
     const isCurrent = row.week_start === currentWeek
     const rowClass = isPast ? 'week-past' : isCurrent ? 'week-current' : 'week-future'
-    const dateLabel = formatWeekDate(row.week_start)
-    const currentBadge = isCurrent ? ' <span class="badge badge-amber" style="font-size:.6rem;vertical-align:middle">NOW</span>' : ''
-
-    if (isPast) {
-      return `<tr class="${rowClass}" data-week="${row.week_start}">
-        <td class="week-label">${dateLabel}${currentBadge}</td>
-        <td>${row.modernist || '—'}</td>
-        <td>${row.classicist || '—'}</td>
-        <td>${row.espressoist || '—'}</td>
-        <td></td>
-      </tr>`
-    }
-
-    const modVal = row.modernist || ''
-    const clasVal = row.classicist || ''
-    const espVal = row.espressoist || ''
-
-    return `<tr class="${rowClass}" data-week="${row.week_start}">
-      <td class="week-label">${dateLabel}${currentBadge}</td>
-      <td>
-        <select id="mod-${row.week_start}" onchange="markRowDirty('${row.week_start}')">
-          <option value="">— select —</option>
-          ${modVal && !allCoffees.includes(modVal) ? `<option value="${modVal}" selected>${modVal}</option>` : ''}
-          ${allCoffees.map(c => `<option value="${c}" ${c===modVal?'selected':''}>${c}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <select id="clas-${row.week_start}" onchange="markRowDirty('${row.week_start}')">
-          <option value="">— select —</option>
-          ${clasVal && !allCoffees.includes(clasVal) ? `<option value="${clasVal}" selected>${clasVal}</option>` : ''}
-          ${allCoffees.map(c => `<option value="${c}" ${c===clasVal?'selected':''}>${c}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <select id="esp-${row.week_start}" onchange="markRowDirty('${row.week_start}')">
-          <option value="">— select —</option>
-          ${espVal && !allCoffees.includes(espVal) ? `<option value="${espVal}" selected>${espVal}</option>` : ''}
-          ${allCoffees.map(c => `<option value="${c}" ${c===espVal?'selected':''}>${c}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <button class="save-row-btn" id="save-${row.week_start}" onclick="saveScheduleRow('${row.week_start}', '${row.id}')">Save</button>
-      </td>
-    </tr>`
+    const editable = !isPast
+    const badge = isCurrent
+      ? '<span class="badge badge-amber" style="font-size:10px">NOW</span>'
+      : isPast ? '<span class="badge badge-gray" style="font-size:10px">LOCKED</span>' : ''
+    return `<div class="week-row ${rowClass}" data-week="${row.week_start}">
+      <div class="week-row-head">
+        <div class="week-label">${formatWeekDate(row.week_start)}</div>
+        <div style="margin-top:4px">${badge}</div>
+      </div>
+      <div class="week-picks">
+        ${pick('Modernist',  `mod-${row.week_start}`,  row.modernist  || '', editable)}
+        ${pick('Classicist', `clas-${row.week_start}`, row.classicist || '', editable)}
+        ${pick('Espressoist',`esp-${row.week_start}`,  row.espressoist|| '', editable)}
+      </div>
+      ${editable ? `<div><button class="save-row-btn" id="save-${row.week_start}" onclick="saveScheduleRow('${row.week_start}', '${row.id}')">Save</button></div>` : ''}
+    </div>`
   }).join('')
 }
 
@@ -2343,10 +2485,10 @@ function renderMixGuide() {
         const safeKey = comp.component_name.replace(/"/g, '&quot;')
         return `<div class="mix-component">
           <div class="mix-pct">${pct}%</div>
-          <div class="mix-weight" id="weight-${pct}-${coffeeName.replace(/[^a-z0-9]/gi,'')}" data-ratio="${comp.ratio}"></div>
           <div class="mix-coffee-info">
             <div class="mix-coffee-name">${coffeeName}</div>
           </div>
+          <div class="mix-weight" id="weight-${pct}-${coffeeName.replace(/[^a-z0-9]/gi,'')}" data-ratio="${comp.ratio}"></div>
         </div>`
       }).join('')}
       <div class="mix-total">${ratioOk ? '✓ Total: 100%' : `⚠ Total: ${Math.round(totalRatio*100)}% — check Blends tab`}</div>
@@ -2376,7 +2518,7 @@ function calcMix() {
     } else {
       const lbs = (totalLbs * ratio).toFixed(2)
       const g   = Math.round(totalG * ratio)
-      el.innerHTML = `${lbs} lbs<span class="mix-weight-g">/ ${g}g</span>`
+      el.innerHTML = `${lbs} lb<span class="mix-weight-g">(${g} g)</span>`
     }
   })
 
