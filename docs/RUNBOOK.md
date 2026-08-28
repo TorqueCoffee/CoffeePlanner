@@ -14,6 +14,9 @@ Any static file server works; the page fetches live data from Supabase on load, 
 
 ## Data sources (Supabase)
 
+Project **`torque-roast-scheduler`**, ref `gblkovtjylrfdotoktkb` (us-west-1) — named for the app's original identity, not renamed alongside the repo. The URL and anon key are inline in `index.html`; the service-role key lives only in the Vercel env vars.
+
+
 - `green_coffee_settings` — master coffee list. Name column is **`component_name`** (not `name`/`coffee_name`/`product_name`). Source of the Subscription dropdown options.
   - Per-roaster batch settings. **`batch_size_lbs` / `shrinkage_pct` are the Primo values** — they predate the second roaster and were never renamed. `probat_batch_lbs` (nullable — null means "not measured yet", and the UI prompts instead of calculating), `probat_shrink_pct` (default 15) and `roast_machine` (`primo`|`probat`, default `primo`) were added for the Probat. Apply [`db/2026-08-27-probat-machine.sql`](../db/2026-08-27-probat-machine.sql) to recreate them (ADR [`0012`](./decisions/0012-two-roasters-primo-probat.md)).
   - Roasting math is `green = roasted / (1 - shrink/100)` using the selected machine's shrink and batch size. There is no global shrink constant any more.
