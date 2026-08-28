@@ -16,7 +16,7 @@
 ### Detours & fixes
 
 - **The migration could not be applied from here.** The Supabase migration tool was blocked by the permission classifier, so `db/2026-08-27-phase2-plan-state.sql` was run by hand. Until it is applied the new code degrades quietly rather than crashing: `planState` stays null (banner reads "Plan is open") and the activity list stays empty.
-- **Still not verified in a browser.** The Chrome extension was unavailable for this session too. `node --check` passes; the batch math was verified numerically. All of phase 2's UI is unrendered as of this entry.
+- **Verified in the browser by Andy on 2026-08-27**, after the migration was applied by hand. Freeze, finalize, late-order rollover, the activity drawer and Undo all behave. (Claude could not render it — the Chrome extension was unavailable both sessions — so `node --check` and numeric checks on the batch math were the only automated gates.)
 - **Known limits, deliberately accepted** (see ADR 0013): `activity_log` grows unbounded with no retention policy; Undo is single-step per event and does not compose — undoing an older event after newer ones touched the same row writes a stale value back; and the log records *what* changed, not *who*, because the app has no user identity. The drawer's "who changed what" heading currently oversells it.
 
 ### Decisions captured
@@ -44,7 +44,7 @@
 - **The prototype contains four features the written spec does not**: a header sync-status pill, an Activity drawer with per-event Undo, Finalize/Reopen-the-day with late-order rollover, and a connection-error banner. Activity and Finalize need new tables and real logic — this would have stopped being a UI pass. Scoped out with Andy; the cheap visual extras (row progress bars, old-order flags, show-the-math) were kept. Deferred, not rejected.
 - **"Auto-resolved coffee" in Subscriptions was dropped.** The spec asked pickers to default to an auto-resolved coffee, but no such resolution exists in the code — new weeks insert as null. Andy confirmed the intent is to keep adding a week and choosing manually, so this became a pure layout change.
 - **Probat batch size is nullable on purpose.** Copying Primo's batch size as a starting value would have produced confident, wrong batch counts on a 33 lb drum. An unset row shows a red prompt and `—` instead.
-- **Could not verify in a browser.** The Chrome extension was not connected this session, so the page was never rendered. JS was syntax-checked with `node --check` and the batch math verified numerically; visual confirmation of all 8 tabs is outstanding and needs eyes on the deploy.
+- **Could not verify in a browser during the build.** The Chrome extension was not connected, so the page was never rendered by Claude; `node --check` and numeric checks on the batch math were the only automated gates. Andy confirmed all 8 tabs in the browser on 2026-08-27, after the phase 2 work landed.
 
 ### Decisions captured
 
