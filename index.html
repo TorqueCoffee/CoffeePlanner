@@ -109,6 +109,43 @@ td select{padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-s
 .counter-btn.plus:hover{background:var(--brown)}
 .counter-val{font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--black);min-width:32px;text-align:center}
 
+/* ---- Bagging: slim toolbar strip + spreadsheet-style grid ---- */
+.bag-toolbar{background:var(--cream-hi);border:2px solid var(--black);border-radius:var(--r-card);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;margin-bottom:14px}
+.bag-toolbar-stats{display:flex;align-items:baseline;gap:22px;flex-wrap:wrap}
+.bag-stat{display:flex;align-items:baseline;gap:6px}
+.bag-stat-n{font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--black);line-height:1}
+.bag-stat-l{font-size:12px;font-weight:700;color:var(--muted)}
+.bag-toolbar-sort{display:flex;align-items:center;gap:10px}
+.bag-toolbar-sort label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.bag-toolbar-sort select{padding:8px 12px;border:2px solid var(--black);border-radius:var(--r-ctl);font:700 12px var(--font-sans);background:var(--cream);color:var(--black);cursor:pointer}
+
+.bag-grid{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);overflow:hidden;overflow-x:auto;margin-bottom:14px}
+.bag-grid-head,.bag-row{display:grid;grid-template-columns:24px minmax(200px,1fr) 100px 96px 132px 78px 64px;align-items:center;gap:10px;padding:7px 16px;min-width:640px}
+.bag-grid-head{background:var(--cream-dark);border-bottom:2px solid var(--black);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.bag-grid-head .c{text-align:center}
+.bag-row{border-bottom:1px solid var(--hairline)}
+.bag-row:last-child{border-bottom:none}
+.bag-row.is-done .bag-name-cell,.bag-row.is-done .bag-qty,.bag-row.is-done .bag-size{opacity:.45}
+.bag-check{width:18px;height:18px;cursor:pointer;accent-color:var(--green)}
+.bag-name-cell{min-width:0}
+.bag-name{font-size:13px;font-weight:700;color:var(--black);line-height:1.25;overflow-wrap:anywhere}
+.bag-note{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3}
+.bag-cell{display:flex;align-items:center;gap:6px;min-width:0}
+.bag-cell.c{justify-content:center;text-align:center}
+.bag-src-cell{flex-direction:column;gap:3px}
+.bag-size{font-size:12px;font-weight:700;color:var(--black);border:2px solid var(--black);border-radius:var(--r-ctl);padding:3px 9px;white-space:nowrap}
+.bag-qty{font-size:13px;color:var(--black);white-space:nowrap;justify-content:center}
+.bag-qty b{font-weight:800;font-family:var(--font-display)}
+.bag-qty span{color:var(--muted);font-size:11px}
+.bag-stale{font-size:10px;font-weight:700;color:var(--amber);background:var(--amber-light);padding:2px 7px;border-radius:var(--r-pill);white-space:nowrap}
+.bag-pm{justify-content:center;gap:6px}
+.bag-mini{width:30px;height:30px;border-radius:8px;border:2px solid var(--black);background:var(--cream);cursor:pointer;font-size:16px;font-weight:800;color:var(--black);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bag-mini.plus{background:var(--black);color:var(--cream)}
+.bag-lock{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-pill);padding:5px 10px;cursor:pointer;font:700 11px var(--font-sans);color:var(--black);white-space:nowrap}
+.bag-lock.locked{background:var(--amber-light);border-color:var(--amber)}
+.bag-row.bag-total{background:var(--cream-dark);border-top:2px solid var(--black)}
+.bag-row.bag-total .bag-name{font-family:var(--font-display);font-size:14px}
+
 /* ---- Bagging / Roasting row cards ---- */
 .row-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);margin-bottom:10px;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .row-card.is-done{opacity:.55}
@@ -248,7 +285,7 @@ td select{padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-s
 .ship-step{font-size:13px;color:var(--black);line-height:1.5}
 
 @media print{
-  .header,.toolbar,#bagging,#addorder,#blends,#b2b,#ship,#help,.sort-bar{display:none!important}
+  .header,.toolbar,#bagging,#addorder,#blends,#b2b,#ship,#help,.sort-bar,.bag-toolbar{display:none!important}
   #roasting{display:block!important;padding:0}
   .summary-row{display:none}
   body{background:white}
@@ -393,19 +430,21 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
 
 <!-- BAGGING -->
 <div id="bagging" class="view active">
-  <div class="summary-row" id="baggingSummary"></div>
+  <div class="bag-toolbar">
+    <div class="bag-toolbar-stats" id="baggingSummary"></div>
+    <div class="bag-toolbar-sort">
+      <label>Sort by</label>
+      <select id="sortSelect" onchange="renderBagging()">
+        <option value="name">Product name A–Z</option>
+        <option value="size">Bag size (large → small)</option>
+        <option value="type">Type (Drops → Singles) then size</option>
+        <option value="source">Source (Shopify → Internal)</option>
+        <option value="date">Order date (oldest first)</option>
+      </select>
+    </div>
+  </div>
   <div id="noOrdersAlert" style="display:none" class="alert alert-amber">⚠ Pull Orders returned 0 items from Shopify. Is this correct?</div>
   <div id="newCoffeesAlert" style="display:none" class="alert alert-blue"></div>
-  <div class="sort-bar">
-    <label>Sort by</label>
-    <select id="sortSelect" onchange="renderBagging()">
-      <option value="name">Product name A–Z</option>
-      <option value="size">Bag size (large → small)</option>
-      <option value="type">Type (Drops → Singles) then size</option>
-      <option value="source">Source (Shopify → Internal)</option>
-      <option value="date">Order date (oldest first)</option>
-    </select>
-  </div>
   <div id="baggingBody"><div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Click "Pull Orders" to load</div></div>
   <div id="baggingFoot"></div>
   <div id="archiveSection" style="display:none">
@@ -976,51 +1015,57 @@ function renderBagging() {
   const doneCount = planData.filter(r=>r.done).length
 
   summaryEl.innerHTML = `
-    <div class="summary-card"><div class="summary-value">${totalNeeded}</div><div class="summary-label">bags needed</div></div>
-    <div class="summary-card"><div class="summary-value" style="color:var(--green)">${totalBagged}</div><div class="summary-label">bagged</div></div>
-    <div class="summary-card"><div class="summary-value">${totalRemaining}</div><div class="summary-label">remaining</div></div>
-    <div class="summary-card"><div class="summary-value">${doneCount}<span style="font-size:16px;color:var(--muted)">/${planData.length}</span></div><div class="summary-label">lines done</div></div>
+    <div class="bag-stat"><span class="bag-stat-n">${totalNeeded}</span><span class="bag-stat-l">needed</span></div>
+    <div class="bag-stat"><span class="bag-stat-n" style="color:var(--green)">${totalBagged}</span><span class="bag-stat-l">bagged</span></div>
+    <div class="bag-stat"><span class="bag-stat-n">${totalRemaining}</span><span class="bag-stat-l">remaining</span></div>
+    <div class="bag-stat"><span class="bag-stat-n">${doneCount}/${planData.length}</span><span class="bag-stat-l">lines done</span></div>
   `
 
-  tbody.innerHTML = sorted.map(row => {
-    const needed = row.qty_needed||0
-    const bagged = row.qty_bagged||0
-    const remaining = qtyRemaining(row)
-    const pct = needed>0 ? Math.min(100,Math.round(bagged/needed*100)) : 0
-    const isOld = row.oldest_order_date && row.oldest_order_date < todayStr
-    const dateLabel = row.oldest_order_date
-      ? `<span class="date-chip ${isOld?'old':''}">${isOld?'⚠ from ':''}${row.oldest_order_date}</span>` : ''
-    return `<div class="row-card ${row.done?'is-done':''}" id="row-${row.id}">
-      <input type="checkbox" style="width:26px;height:26px;accent-color:var(--green);flex-shrink:0" ${row.done?'checked':''} onchange="toggleDone('${row.id}',this.checked)">
-      <div class="row-card-main">
-        <div class="row-title-line">
-          <span class="row-name">${row.product_name}</span>
-          <span class="size-chip">${row.variant_title}</span>
+  // Spreadsheet-style grid: one shared grid-template-columns between the header
+  // and every row so name / size / source / qty line up vertically for fast
+  // scanning. No per-row progress bar, no trust line - rows stay ~44px so 8+
+  // coffees fit on an iPad before scrolling.
+  tbody.innerHTML = `<div class="bag-grid">
+    <div class="bag-grid-head">
+      <span></span><span>Coffee</span><span class="c">Bag size</span><span class="c">Source</span><span class="c">Qty</span><span></span><span></span>
+    </div>
+    ${sorted.map(row => {
+      const needed = row.qty_needed||0
+      const bagged = row.qty_bagged||0
+      const remaining = qtyRemaining(row)
+      const isOld = row.oldest_order_date && row.oldest_order_date < todayStr
+      const stale = isOld ? `<span class="bag-stale">⚠ ${row.oldest_order_date}</span>` : ''
+      return `<div class="bag-row ${row.done?'is-done':''}" id="row-${row.id}">
+        <input type="checkbox" class="bag-check" ${row.done?'checked':''} onchange="toggleDone('${row.id}',this.checked)">
+        <div class="bag-name-cell">
+          <div class="bag-name">${row.product_name}</div>
+          ${row.note?`<div class="bag-note">${row.note}</div>`:''}
+        </div>
+        <div class="bag-cell c"><span class="bag-size">${row.variant_title}</span></div>
+        <div class="bag-cell c bag-src-cell">
           <span class="source-tag ${row.source==='manual'?'manual':''}">${row.source==='manual'?'Internal':'Shopify'}</span>
-          ${dateLabel}
+          ${stale}
         </div>
-        ${row.note?`<div class="row-note">${row.note}</div>`:''}
-        <div class="row-progress">
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <span class="progress-text">${pct}%</span>
+        <div class="bag-cell c bag-qty"><b>${bagged} / ${needed}</b> <span>(${remaining} left)</span></div>
+        <div class="bag-cell bag-pm">
+          <button class="bag-mini" onclick="adjustBagged('${row.id}',-1)">−</button>
+          <button class="bag-mini plus" onclick="adjustBagged('${row.id}',1)">+</button>
         </div>
-      </div>
-      <div class="counter-cell">
-        <button class="counter-btn" onclick="adjustBagged('${row.id}',-1)">−</button>
-        <div class="count-block">
-          <div class="count-main">${bagged}<span class="of"> / ${needed}</span></div>
-          <div class="count-sub">${remaining} left</div>
+        <div class="bag-cell c">
+          <button class="bag-lock ${row.locked?'locked':''}" onclick="toggleLock('${row.id}',${!row.locked})">${row.locked?'🔒':'Lock'}</button>
         </div>
-        <button class="counter-btn plus" onclick="adjustBagged('${row.id}',1)">+</button>
-      </div>
-      <button class="lock-btn ${row.locked?'locked':''}" onclick="toggleLock('${row.id}',${!row.locked})">${row.locked?'🔒':'Lock'}</button>
-    </div>`
-  }).join('')
-
-  tfoot.innerHTML = `<div class="row-card" style="background:var(--cream-dark)">
-    <div class="row-card-main"><span class="row-name">TOTAL</span></div>
-    <div class="count-block"><div class="count-main">${totalBagged}<span class="of"> / ${totalNeeded}</span></div><div class="count-sub">${totalRemaining} left</div></div>
+      </div>`
+    }).join('')}
+    <div class="bag-row bag-total">
+      <span></span>
+      <div class="bag-name-cell"><div class="bag-name">Total</div></div>
+      <div class="bag-cell c"></div><div class="bag-cell c"></div>
+      <div class="bag-cell c bag-qty"><b>${totalBagged} / ${totalNeeded}</b> <span>(${totalRemaining} left)</span></div>
+      <span></span><span></span>
+    </div>
   </div>`
+
+  tfoot.innerHTML = ''
 }
 
 function renderRoasting() {

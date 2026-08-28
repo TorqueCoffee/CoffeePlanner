@@ -1,5 +1,24 @@
 # Journal
 
+## 2026-08-28 — Step: Bagging tab → spreadsheet grid
+
+### Work done
+
+- **Bagging list: card layout → spreadsheet-style grid.** `renderBagging()` now emits a single `.bag-grid` with a fixed header row (Coffee / Bag size / Source / Qty) and data rows that share one `grid-template-columns` (`24px minmax(200px,1fr) 100px 96px 132px 78px 64px`), so name, chip, source and count line up vertically. Removed the per-row progress bar and percentage. Rows are ~44px, so 8+ coffees are visible on an iPad before scrolling. Name cell uses `overflow-wrap:anywhere` and never truncates — long single-origin names ("Balboa Cauca - Auction Lot, Colombia") wrap to a second line.
+- **Stat totals + Sort by merged into one slim toolbar strip** (`.bag-toolbar`, cream-hi, 2px ink). The four separate summary cards and the standalone sort row are gone; numbers now sit inline with their labels (`34 needed  1 bagged  33 remaining  0/13 lines done`).
+- Bag size renders as a small outlined chip centered in its column; Source pill + the stale-order warning chip (`⚠ <date>`) stack centered in their own column; Qty is `{done} / {needed} (remaining left)` on one line, done/needed full-contrast black.
+- No data-flow changes: `sortPlan`, `adjustBagged`, `toggleDone`, `toggleLock`, `qtyRemaining` and every Supabase call are untouched. All five existing sort options kept.
+- Reviewed the rest of the V2 handoff (`V2 update/handoff/CLAUDE_CODE_PROMPT.md`) tab by tab against `index.html`: Roasting (per-row Primo/Probat toggle + split summary cards), Blends (display-type names + Single Origin Batch Sizes by roaster), B2B (compact single-line order lines), Add Order (`min-width:0` flex row), Mix Guide (30px bold weights, explicit black qty inputs) and Subscriptions (stacked label+select pickers persisting to `subscription_schedule`) were all already implemented in the V2 + Phase 2 passes. No schema change needed — `subscription_schedule.modernist/classicist/espressoist` already back the per-week overrides.
+
+### Detours & fixes
+
+- **The handoff PNG contradicts the `.dc.html` prototype for Bagging.** The prototype still shows the V2 card layout (progress bar, trust line, four stat cards); `handoff/bagging-redesign.png` and the newer written spec call for the grid. Followed the PNG + written spec as the later source of truth. See ADR 0014.
+- Not verified in a live browser this session (no Chrome extension, no Supabase data locally). `node`-parsed the full script block; grid math checked by hand.
+
+### Decisions captured
+
+- [`0014-bagging-spreadsheet-grid.md`](./decisions/0014-bagging-spreadsheet-grid.md)
+
 ## 2026-08-27 — Step: Phase 2 — the roasting plan holds still
 
 ### Work done
