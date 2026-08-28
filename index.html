@@ -112,6 +112,25 @@ td select{padding:6px 8px;border:2px solid var(--black);border-radius:6px;font-s
 /* ---- Bagging / Roasting row cards ---- */
 .row-card{background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);margin-bottom:10px;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .row-card.is-done{opacity:.55}
+.row-card.is-locked{background:var(--amber-light)}
+/* header: sync pill + activity */
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:rgba(255,254,240,.8);background:rgba(255,254,240,.08);border:1px solid rgba(255,254,240,.25);border-radius:var(--r-pill);padding:5px 12px;white-space:nowrap}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.sync-pill.is-stale .sync-dot{background:var(--amber)}
+.sync-pill.is-error{color:#FFD9D3;border-color:var(--red)}
+.sync-pill.is-error .sync-dot{background:var(--red)}
+.activity-btn{font-size:12px;font-weight:700;font-family:var(--font-sans);color:var(--cream);background:rgba(255,254,240,.08);border:1px solid rgba(255,254,240,.25);border-radius:var(--r-pill);padding:8px 14px;cursor:pointer;white-space:nowrap}
+.activity-btn:hover{border-color:rgba(255,254,240,.5)}
+.activity-drawer{position:absolute;top:auto;right:20px;width:320px;max-width:calc(100% - 40px);background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card);z-index:90;overflow:hidden;margin-top:8px}
+.activity-head{padding:12px 16px;background:var(--brown);color:var(--cream);display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.activity-head button{background:none;border:none;color:var(--cream);font-size:18px;cursor:pointer;line-height:1}
+.activity-list{max-height:360px;overflow-y:auto}
+.activity-item{padding:11px 16px;border-bottom:1px solid var(--hairline);display:flex;flex-direction:column;gap:3px}
+.activity-item:last-child{border-bottom:none}
+.activity-text{font-size:13px;line-height:1.4;color:var(--black)}
+.activity-text.is-undone{text-decoration:line-through;color:var(--muted)}
+.activity-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}
+.activity-meta button{font-size:11px;font-weight:700;color:var(--orange);background:none;border:none;cursor:pointer;padding:2px 4px;font-family:var(--font-sans)}
 .row-card-main{flex:1;min-width:220px}
 .row-title-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .row-name{font-size:15px;font-weight:700;color:var(--black);line-height:1.2}
@@ -346,6 +365,8 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
     <div class="logo">TORQUE — Roast Scheduler</div>
     <div class="date-badge" id="dateBadge"></div>
     <div class="stale-warn" id="staleWarn" onclick="switchTab('blends',document.querySelectorAll('.tab')[3])">⚠ Blend issue — tap to fix</div>
+    <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncText">Live</span></div>
+    <button class="activity-btn" onclick="toggleActivity()">Activity<span id="activityBadge"></span></button>
   </div>
   <div class="tabs">
     <button class="tab active" onclick="switchTab('bagging',this)">Bagging</button>
@@ -359,6 +380,8 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
     <button class="tab" onclick="switchTab('help',this)">Help</button>
   </div>
 </div>
+
+<div class="activity-drawer" id="activityDrawer" style="display:none"></div>
 
 <div class="toolbar">
   <button class="btn btn-primary" id="refreshBtn" onclick="refreshOrders()">Pull Orders</button>
@@ -404,12 +427,14 @@ html.tq-locked body>*:not(#tqGate){display:none!important}
   <div id="blendWarning" style="display:none" class="alert alert-red"></div>
   <div id="staleWarnRoast" style="display:none" class="alert alert-red"></div>
   <div class="summary-row" id="roastSummary"></div>
+  <div id="planBanner"></div>
   <div class="section-header">
     <span>Coffee Roasting Plan <span class="hint">— tap Primo/Probat per row to set which roaster</span></span>
     <button class="link-btn" onclick="gotoBatchSizes()">Batch sizes →</button>
   </div>
   <div id="roastingBody"><div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Load bagging plan first</div></div>
   <div id="roastingFoot"></div>
+  <div id="afterLockSection"></div>
   <div class="section-header">
     Custom One-Time Roasts
     <button class="btn btn-ghost btn-sm" onclick="addCustomRoastRow()">+ Add</button>
@@ -666,6 +691,10 @@ let roastingProgress = {}
 let shopifyProducts = []
 let staleBlends = []
 let roastLocks = {}
+let liveRoastedLbs = {}
+let planState = null        // plan_state row for today; finalized_at null = open
+let activityLog = []
+let activityOpen = false
 let b2bShipOrders = []   // from /api/shopify-token?type=b2b-ship — the ship-order list
 let shipState = null     // current open order's ship flow (in-memory), or null = list
 let shipPending = {}     // order_id → labels bought but not fulfilled (from the DB, survives a reload)
@@ -826,8 +855,12 @@ async function refreshOrders() {
     await validateBlends()
     await loadPlan()
     const t = new Date()
+    lastSyncAt = t
+    setSync('live')
     status.textContent = `Pulled ${data.items.length} items — ${t.toLocaleDateString()} ${t.toLocaleTimeString()}`
+    logActivity('pull', `Pulled ${data.items.length} items from Shopify`, null)
   } catch(err) {
+    setSync('error', err.message)
     status.textContent = 'Error: ' + err.message
   }
   btn.disabled = false
@@ -838,10 +871,40 @@ async function loadPlan() {
   planData = data || []
   const { data: rp } = await sb.from('roasting_progress').select('*').eq('team_id',TEAM_ID).eq('plan_date',todayStr)
   roastingProgress = {}
-  for (const r of (rp||[])) roastingProgress[r.green_name] = r
+  roastLocks = {}
+  for (const r of (rp||[])) {
+    roastingProgress[r.green_name] = r
+    // The freeze lives in the DB, so it survives a refresh and is shared
+    // across every device looking at today's plan.
+    if (r.locked_roasted_lbs != null) roastLocks[r.green_name] = Number(r.locked_roasted_lbs)
+  }
+  await loadPlanState()
+  await loadActivity()
   renderBagging()
   renderRoasting()
   populateCoffeeDropdown()
+}
+
+async function loadPlanState() {
+  const { data } = await sb.from('plan_state').select('*')
+    .eq('team_id',TEAM_ID).eq('plan_date',todayStr).maybeSingle()
+  planState = data || null
+}
+
+async function loadActivity() {
+  const { data } = await sb.from('activity_log').select('*')
+    .eq('team_id',TEAM_ID).eq('plan_date',todayStr)
+    .order('created_at',{ascending:false}).limit(50)
+  activityLog = data || []
+  renderActivity()
+}
+
+// Append one event. `undo` is {table,id,column,prev} when the change can be
+// reversed by writing a previous value back; null when it cannot.
+async function logActivity(kind, text, undo) {
+  const row = { team_id:TEAM_ID, plan_date:todayStr, kind, text, undo: undo || null }
+  const { data } = await sb.from('activity_log').insert(row).select().single()
+  if (data) { activityLog.unshift(data); renderActivity() }
 }
 
 async function loadBlends() {
@@ -967,14 +1030,23 @@ function renderRoasting() {
   const warnEl = document.getElementById('blendWarning')
 
   if (!planData.length) {
+    renderPlanBanner()
     tbody.innerHTML = '<div class="empty" style="background:var(--cream);border:2px solid var(--black);border-radius:var(--r-card)">Load bagging plan first</div>'
     tfoot.innerHTML = ''
     summaryEl.innerHTML = ''
     return
   }
 
+  renderPlanBanner()
+  renderAfterLock()
+
+  // Lines that arrived after the plan was finalized are not part of today's
+  // roast - they are listed separately and roll to tomorrow.
+  const lateIds = new Set(afterLockRows().map(r=>r.id))
+
   const roastedByProduct = {}
   for (const row of planData) {
+    if (lateIds.has(row.id)) continue
     const lbs = variantToLbs(row.variant_title) * qtyRemaining(row)
     if (lbs<=0) continue
     roastedByProduct[row.product_name] = (roastedByProduct[row.product_name]||0) + lbs
@@ -1007,7 +1079,9 @@ function renderRoasting() {
     if (components.length>0) {
       for (const comp of components) {
         const key = comp.component_name
-        if (roastLocks[key]) continue
+        // A locked coffee stays in the list (greyed, with a working Unlock button)
+        // but contributes nothing to the batch totals. Dropping it here is what
+        // used to make the row vanish with no way to get it back.
         if (!coffeeNeeded[key]) {
           const gs = greenSettings.find(g=>g.component_name===key)
           coffeeNeeded[key] = { roasted:0, batch_size: gs?gs.batch_size_lbs:comp.batch_size_lbs }
@@ -1016,11 +1090,19 @@ function renderRoasting() {
       }
     } else {
       const key = product
-      if (roastLocks[key]) continue
       const gs = greenSettings.find(g=>g.component_name===key)
       const batchSize = gs?gs.batch_size_lbs:8
       if (!coffeeNeeded[key]) coffeeNeeded[key] = { roasted:0, batch_size:batchSize }
       coffeeNeeded[key].roasted += roastedLbs
+    }
+  }
+
+  // A frozen coffee stays on the plan even if its live demand has gone to zero
+  // - otherwise clearing its bagging lines would make the locked row disappear.
+  for (const name of Object.keys(roastLocks)) {
+    if (!coffeeNeeded[name]) {
+      const gs = greenSettings.find(g=>g.component_name===name)
+      coffeeNeeded[name] = { roasted:0, batch_size: gs?gs.batch_size_lbs:8 }
     }
   }
 
@@ -1043,11 +1125,21 @@ function renderRoasting() {
   let totalGreen=0, totalBatchesDone=0, primoNeeded=0, probatNeeded=0
   const rows = Object.entries(coffeeNeeded).sort((a,b)=>a[0].localeCompare(b[0]))
 
+  // Live roasted lbs per coffee, so toggleRoastLock can snapshot the current
+  // figure at the moment it locks.
+  liveRoastedLbs = {}
+  for (const [name,val] of rows) liveRoastedLbs[name] = val.roasted
+
   tbody.innerHTML = rows.map(([coffeeName,val])=>{
     const m = machineFor(coffeeName)
+    // Locked = this row's demand is frozen: later order pulls and Add Order
+    // lines don't move it. It still counts in every total - Roasting is the
+    // total that needs roasting.
+    const locked = roastLocks[coffeeName] != null
+    const roastedLbs = locked ? roastLocks[coffeeName] : val.roasted
     // green = roasted / (1 - shrink%). At 15% this is the historic 1.176 factor.
     const shrinkDiv = 1 - (m.shrinkPct/100)
-    const greenLbs = shrinkDiv>0 ? val.roasted/shrinkDiv : 0
+    const greenLbs = shrinkDiv>0 ? roastedLbs/shrinkDiv : 0
     const canCompute = !!m.batchSize && m.batchSize>0
     const batchesNeeded = canCompute ? Math.ceil(greenLbs/m.batchSize) : 0
     const prog = roastingProgress[coffeeName]
@@ -1068,11 +1160,11 @@ function renderRoasting() {
            <input type="number" min="1" max="30" step="0.5" value="${m.shrinkPct}" onchange="setMachineVal('${esc}','${m.machine==='probat'?'probat_shrink_pct':'shrinkage_pct'}',this.value)">% shrink
          </span>`
 
-    return `<div class="row-card ${batchesLeft===0&&canCompute?'is-done':''}">
+    return `<div class="row-card ${locked?'is-locked':''} ${batchesLeft===0&&canCompute?'is-done':''}">
       <div class="row-card-main">
-        <div class="row-name">${coffeeName}</div>
+        <div class="row-name">${coffeeName}${locked?' <span class="badge badge-amber" style="font-size:10px">FROZEN</span>':''}</div>
         <div class="row-meta">
-          <span>Roasted <b>${val.roasted.toFixed(1)}</b> lbs</span>
+          <span>Roasted <b>${roastedLbs.toFixed(1)}</b> lbs</span>
           <button class="math-toggle" onclick="toggleRoastMath('${esc}')">Green ${greenLbs.toFixed(1)} lbs ${expanded?'▾':'▸'}</button>
           <span class="machine-toggle">
             <button class="machine-btn ${m.machine==='primo'?'active':''}" onclick="setMachine('${esc}','primo')">Primo</button>
@@ -1081,7 +1173,7 @@ function renderRoasting() {
           ${editor}
         </div>
         ${expanded?`<div class="math-panel">
-          ${val.roasted.toFixed(1)} roasted lbs ÷ (1 − ${m.shrinkPct}% shrink on ${m.machine==='probat'?'Probat':'Primo'}) = <b>${greenLbs.toFixed(1)} green lbs</b><br>
+          ${roastedLbs.toFixed(1)} roasted lbs ÷ (1 − ${m.shrinkPct}% shrink on ${m.machine==='probat'?'Probat':'Primo'}) = <b>${greenLbs.toFixed(1)} green lbs</b><br>
           ${canCompute
             ? `${greenLbs.toFixed(1)} green lbs ÷ ${m.batchSize} lbs/batch = <b>${batchesNeeded} batches</b> (rounded up)`
             : `<b style="color:var(--red)">No Probat batch size set — set one above to get a batch count.</b>`}
@@ -1103,7 +1195,7 @@ function renderRoasting() {
         <div class="count-need" style="color:${batchesLeft===0?'var(--green)':'var(--black)'}">${canCompute?batchesLeft:'—'}</div>
         <div class="count-sub">remaining</div>
       </div>
-      <button class="lock-btn ${roastLocks[coffeeName]?'locked':''}" onclick="toggleRoastLock(this.dataset.name)" data-name="${coffeeName}">${roastLocks[coffeeName]?'🔒':'Lock'}</button>
+      <button class="lock-btn ${locked?'locked':''}" onclick="toggleRoastLock(this.dataset.name)" data-name="${coffeeName}">${locked?'🔒 Unlock':'Lock'}</button>
     </div>`
   }).join('')
 
@@ -1125,6 +1217,165 @@ function renderRoasting() {
     <div class="summary-card stacked"><div class="summary-label">Remaining</div><div class="summary-value">${totalLeft}</div><div class="summary-sub">batches left</div></div>
     <div class="summary-card stacked"><div class="summary-label">Green lbs</div><div class="summary-value">${totalGreen.toFixed(0)}</div><div class="summary-sub">shrink % set per coffee, per machine</div></div>
   `
+}
+
+// ---- Sync status -----------------------------------------------------------
+// Says plainly whether what's on screen is current. On a failed pull it must
+// make clear that nothing was overwritten - the old data is still the truth.
+let lastSyncAt = null
+
+function setSync(state, detail) {
+  const pill = document.getElementById('syncPill')
+  const text = document.getElementById('syncText')
+  if (!pill || !text) return
+  pill.classList.remove('is-stale','is-error')
+  if (state === 'error') {
+    pill.classList.add('is-error')
+    const when = lastSyncAt ? lastSyncAt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : 'never'
+    text.textContent = `Sync failed — showing ${when}`
+    pill.title = `${detail || 'Could not reach Shopify.'} Nothing on this plan was changed or overwritten.`
+  } else if (state === 'stale') {
+    pill.classList.add('is-stale')
+    text.textContent = 'Stale'
+    pill.title = 'This data may be out of date. Pull Orders to refresh.'
+  } else {
+    text.textContent = lastSyncAt
+      ? `Live · ${lastSyncAt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`
+      : 'Live'
+    pill.title = 'Realtime sync is connected.'
+  }
+}
+
+// ---- Plan state: finalize freezes the whole day ----------------------------
+
+function planIsFinalized() { return !!(planState && planState.finalized_at) }
+
+// A line that first appeared after we finalized is not on today's plan. It
+// stays visible on Roasting so nobody discovers it tomorrow by surprise.
+function afterLockRows() {
+  if (!planIsFinalized()) return []
+  const cut = new Date(planState.finalized_at).getTime()
+  return planData.filter(r => r.created_at && new Date(r.created_at).getTime() > cut)
+}
+
+function renderPlanBanner() {
+  const el = document.getElementById('planBanner')
+  if (!el) return
+  if (planIsFinalized()) {
+    const t = new Date(planState.finalized_at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})
+    el.innerHTML = `<div class="alert alert-green" style="justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700">Today's plan is finalized</div>
+        <div style="font-size:12px;margin-top:2px;opacity:.85">Frozen at ${t}. Orders arriving after that roll to tomorrow.</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="reopenPlan()">Reopen plan</button>
+    </div>`
+  } else {
+    el.innerHTML = `<div class="alert alert-amber" style="justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700">Plan is open</div>
+        <div style="font-size:12px;margin-top:2px;opacity:.85">New Shopify orders still change today's numbers. Finalize when the roast is set.</div>
+      </div>
+      <button class="btn btn-lg" onclick="finalizePlan()" style="animation:none;box-shadow:none">Finalize today's plan</button>
+    </div>`
+  }
+}
+
+function renderAfterLock() {
+  const el = document.getElementById('afterLockSection')
+  if (!el) return
+  const late = afterLockRows()
+  if (!late.length) { el.innerHTML = ''; return }
+  el.innerHTML = `<div style="margin-top:22px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin-bottom:8px">Came in after lock — not on today's plan</div>
+    ${late.map(r=>{
+      const at = new Date(r.created_at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})
+      return `<div class="alert alert-red" style="justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700">${r.product_name} — ${r.qty_needed} ${r.variant_title}</div>
+          <div style="font-size:12px;margin-top:2px">Arrived ${at}, after this morning's lock. Rolling to tomorrow.</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="addLateToToday('${r.id}')">Add to today anyway</button>
+      </div>`
+    }).join('')}
+  </div>`
+}
+
+async function finalizePlan() {
+  const now = new Date().toISOString()
+  const row = { team_id:TEAM_ID, plan_date:todayStr, finalized_at:now, updated_at:now }
+  // upsert: the day's row may or may not exist yet
+  const { data } = await sb.from('plan_state').upsert(row, {onConflict:'team_id,plan_date'}).select().single()
+  planState = data || row
+  renderRoasting()
+  logActivity('plan', 'Finalized today\'s plan', null)
+}
+
+async function reopenPlan() {
+  if (!confirm("Reopen today's plan? Orders that arrived after the lock will fold back into the numbers.")) return
+  const now = new Date().toISOString()
+  const row = { team_id:TEAM_ID, plan_date:todayStr, finalized_at:null, updated_at:now }
+  const { data } = await sb.from('plan_state').upsert(row, {onConflict:'team_id,plan_date'}).select().single()
+  planState = data || row
+  renderRoasting()
+  logActivity('plan', 'Reopened the plan', null)
+}
+
+// Pull one late line onto today's plan by backdating it to before the lock.
+async function addLateToToday(id) {
+  const row = planData.find(r=>r.id===id)
+  if (!row || !planIsFinalized()) return
+  const before = new Date(new Date(planState.finalized_at).getTime()-1000).toISOString()
+  await sb.from('daily_plan').update({created_at:before}).eq('id',id)
+  row.created_at = before
+  renderBagging()
+  renderRoasting()
+  logActivity('plan', `Added ${row.product_name} ${row.variant_title} to today despite the lock`, null)
+}
+
+// ---- Activity drawer -------------------------------------------------------
+
+function toggleActivity() {
+  activityOpen = !activityOpen
+  renderActivity()
+}
+
+function renderActivity() {
+  const drawer = document.getElementById('activityDrawer')
+  const badge = document.getElementById('activityBadge')
+  if (badge) badge.textContent = activityLog.length ? ` (${activityLog.length})` : ''
+  if (!drawer) return
+  if (!activityOpen) { drawer.style.display = 'none'; return }
+  drawer.style.display = 'block'
+  drawer.innerHTML = `
+    <div class="activity-head">
+      <span>Activity — who changed what</span>
+      <button onclick="toggleActivity()">×</button>
+    </div>
+    <div class="activity-list">
+      ${!activityLog.length ? '<div class="empty" style="padding:24px">Nothing yet today</div>' :
+        activityLog.map(ev=>`
+          <div class="activity-item">
+            <div class="activity-text ${ev.undone?'is-undone':''}">${ev.text}</div>
+            <div class="activity-meta">
+              <span>${new Date(ev.created_at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}${ev.undone?' · undone':''}</span>
+              ${ev.undo && !ev.undone ? `<button onclick="undoActivity('${ev.id}')">Undo</button>` : ''}
+            </div>
+          </div>`).join('')}
+    </div>`
+}
+
+// Undo writes the recorded previous value back and marks the event undone.
+// Only counter changes carry an undo payload; pulls and label buys never do.
+async function undoActivity(id) {
+  const ev = activityLog.find(e=>e.id===id)
+  if (!ev || !ev.undo || ev.undone) return
+  const {table, id:rowId, column, prev} = ev.undo
+  if (!table || !rowId || !column) return
+  await sb.from(table).update({[column]:prev, updated_at:new Date().toISOString()}).eq('id',rowId)
+  await sb.from('activity_log').update({undone:true}).eq('id',id)
+  ev.undone = true
+  await loadPlan()
 }
 
 // Which roasting rows have their math panel open. View state only, not persisted.
@@ -1956,10 +2207,13 @@ async function adjustBagged(id, delta) {
   if (!row) return
   const newVal = Math.max(0, Math.min(row.qty_needed||0, (row.qty_bagged||0)+delta))
   const done = newVal>=(row.qty_needed||0) && (row.qty_needed||0)>0
+  const prev = row.qty_bagged||0
   await sb.from('daily_plan').update({qty_bagged:newVal,done,updated_at:new Date().toISOString()}).eq('id',id)
   planData = planData.map(r=>r.id===id?{...r,qty_bagged:newVal,done}:r)
   renderBagging()
   renderRoasting()
+  logActivity('bagged', `${row.product_name} ${row.variant_title} bagged ${prev} → ${newVal}`,
+    {table:'daily_plan', id, column:'qty_bagged', prev})
 }
 
 async function adjustBatches(greenName, delta) {
@@ -1976,11 +2230,39 @@ async function adjustBatches(greenName, delta) {
     if(ins) roastingProgress[greenName] = ins
   }
   renderRoasting()
+  logActivity('batches', `${greenName} batches ${current} → ${newVal}`,
+    {table:'roasting_progress', id: roastingProgress[greenName]?.id, column:'batches_done', prev:current})
 }
 
-function toggleRoastLock(coffeeName) {
-  roastLocks[coffeeName] = !roastLocks[coffeeName]
+// Locking freezes this coffee's roasted-lbs demand at its current value, so
+// later Shopify pulls and Add Order lines can't change what it asks for.
+// Unlocking lets it track the live plan again. Machine and shrink edits still
+// recalculate a locked row - those are deliberate acts, not incoming demand.
+async function toggleRoastLock(coffeeName) {
+  const wasLocked = roastLocks[coffeeName] != null
+  const frozen = wasLocked ? null : (liveRoastedLbs[coffeeName] ?? 0)
+
+  if (wasLocked) delete roastLocks[coffeeName]
+  else roastLocks[coffeeName] = frozen
   renderRoasting()
+
+  const prog = roastingProgress[coffeeName]
+  if (prog) {
+    await sb.from('roasting_progress')
+      .update({locked_roasted_lbs:frozen, updated_at:new Date().toISOString()}).eq('id',prog.id)
+    roastingProgress[coffeeName] = {...prog, locked_roasted_lbs:frozen}
+  } else {
+    const {data:ins} = await sb.from('roasting_progress').insert({
+      team_id:TEAM_ID, green_name:coffeeName, batches_done:0,
+      plan_date:todayStr, locked_roasted_lbs:frozen
+    }).select().single()
+    if (ins) roastingProgress[coffeeName] = ins
+  }
+
+  logActivity('roast_lock',
+    wasLocked ? `Unfroze ${coffeeName} — tracking the live plan again`
+              : `Froze ${coffeeName} at ${frozen.toFixed(1)} roasted lbs`,
+    null)
 }
 
 function addCustomRoastRow() {
@@ -2541,15 +2823,31 @@ sb.channel('roast_changes')
   .on('postgres_changes',{event:'*',schema:'public',table:'roasting_progress'},async()=>{
     const {data:rp}=await sb.from('roasting_progress').select('*').eq('team_id',TEAM_ID).eq('plan_date',todayStr)
     roastingProgress={}
-    for(const r of (rp||[])) roastingProgress[r.green_name]=r
+    roastLocks={}
+    for(const r of (rp||[])) {
+      roastingProgress[r.green_name]=r
+      if (r.locked_roasted_lbs != null) roastLocks[r.green_name] = Number(r.locked_roasted_lbs)
+    }
     renderRoasting()
   })
+  .subscribe()
+// Finalizing on one iPad has to show up on every other one.
+sb.channel('plan_state_changes')
+  .on('postgres_changes',{event:'*',schema:'public',table:'plan_state'},async()=>{
+    await loadPlanState()
+    renderRoasting()
+  })
+  .subscribe()
+sb.channel('activity_changes')
+  .on('postgres_changes',{event:'*',schema:'public',table:'activity_log'},()=>loadActivity())
   .subscribe()
 
 async function init() {
   await loadBlends()
   await loadPlan()
   await loadSchedule()
+  lastSyncAt = new Date()
+  setSync('live')
 }
 init()
 </script>

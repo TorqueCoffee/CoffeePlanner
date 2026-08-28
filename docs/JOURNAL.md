@@ -1,5 +1,28 @@
 # Journal
 
+## 2026-08-27 — Step: Phase 2 — the roasting plan holds still
+
+### Work done
+
+- **Fixed: locking a Roasting row deleted it.** `renderRoasting()` built its rows from `coffeeNeeded` and both branches did `if (roastLocks[key]) continue`, so locking a coffee dropped it from the map and the row was never rendered — taking its own Unlock button with it. `roastLocks` was memory-only, so only a refresh brought it back. **Predates V2** (identical in `f6c79b6`); the card layout just made the disappearance obvious.
+- **Lock now means freeze, not exclude.** First pass got the semantics backwards — it kept the row visible but pulled it out of the totals. Andy: *"locking a row that needs roasting should make it NOT be edited by new coffee adds to bagging. NOT make it not be counted in total. the roasting page is the TOTAL that needs roasting."* A locked row now freezes its roasted-lbs demand and still counts in green lbs, batches done, and its machine's needed total. Machine and shrink edits still recalculate it — those are deliberate, not incoming demand.
+- **The freeze persists** in `roasting_progress.locked_roasted_lbs`, so it survives a refresh and is shared across devices. A frozen coffee also stays listed when its live demand falls to zero — otherwise clearing its bagging lines would make the locked row vanish again, the same bug wearing a different hat.
+- **Finalize / Reopen the day.** New `plan_state` table stamps `finalized_at` per team per day. The Roasting tab carries a banner: open (amber, with Finalize) or finalized (green, with Reopen and the time).
+- **Late orders.** `daily_plan` gained a real `created_at` — `updated_at` moves every time someone taps `+`, so it could never answer "did this arrive after we finalized?". Lines created after `finalized_at` render in a "Came in after lock — not on today's plan" section, are excluded from the roast math, and can be pulled in with "Add to today anyway" (which backdates the line to just before the lock).
+- **Activity drawer with Undo.** Append-only `activity_log`, newest first, opened from the header. Counter changes carry an `{table,id,column,prev}` payload and get an Undo button; pulls, finalization and lock toggles are recorded but not undoable. Undo flags the row `undone` rather than deleting it, and the table has no anon DELETE policy.
+- **Sync-status pill** in the header. On a failed pull it says "Sync failed — showing 7:12am" and the tooltip states plainly that nothing was changed or overwritten.
+- **Realtime** added for `plan_state` and `activity_log`, so finalizing on one iPad shows up on the others.
+
+### Detours & fixes
+
+- **The migration could not be applied from here.** The Supabase migration tool was blocked by the permission classifier, so `db/2026-08-27-phase2-plan-state.sql` was run by hand. Until it is applied the new code degrades quietly rather than crashing: `planState` stays null (banner reads "Plan is open") and the activity list stays empty.
+- **Still not verified in a browser.** The Chrome extension was unavailable for this session too. `node --check` passes; the batch math was verified numerically. All of phase 2's UI is unrendered as of this entry.
+- **Known limits, deliberately accepted** (see ADR 0013): `activity_log` grows unbounded with no retention policy; Undo is single-step per event and does not compose — undoing an older event after newer ones touched the same row writes a stale value back; and the log records *what* changed, not *who*, because the app has no user identity. The drawer's "who changed what" heading currently oversells it.
+
+### Decisions captured
+
+- [`0013-plan-finalization-and-activity-log.md`](./decisions/0013-plan-finalization-and-activity-log.md)
+
 ## 2026-08-27 — Step: Production Portal V2 — Torque design system re-skin + the Probat
 
 ### Work done
