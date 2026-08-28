@@ -41,4 +41,11 @@ The `api/` functions run on Vercel and hold all secrets server-side (never in `i
 
 ## Deploy
 
-Committed to git and deployed on Vercel (static `index.html` + `api/` serverless functions). Set the env vars above in the Vercel project before the endpoints work.
+Push to `main` on [`TorqueCoffee/torque-production-portal`](https://github.com/TorqueCoffee/torque-production-portal). Vercel builds from that branch automatically — static `index.html` plus the `api/` serverless functions. Set the env vars above in the Vercel project before the endpoints work.
+
+- **Vercel project:** [`torquecoffees-projects/torque-production-portal`](https://vercel.com/torquecoffees-projects/torque-production-portal/deployments)
+- **Supabase project:** `torque-roast-scheduler` (`gblkovtjylrfdotoktkb`)
+
+The three names do not match, which has cost time more than once: the repo is `torque-production-portal`, the Vercel project matches it, and the Supabase project still carries the app's original `torque-roast-scheduler` name. There is also a separate `torque-green-planner` Vercel project — a different app. Check the URL before concluding a deploy did not happen.
+
+**Schema changes ship separately.** Migrations in `db/` are applied by hand in the Supabase SQL editor; nothing runs them on deploy. Apply the migration *before* pushing code that writes to the new columns.
