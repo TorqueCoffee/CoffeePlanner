@@ -1,5 +1,31 @@
 # Journal
 
+## 2026-09-03 — Step: Bridge Blend gets a recipe, and bulk boxes reach the drum
+
+### Work done
+
+- **`Bridge Blend - Grondin Community Bridge Composition` now explodes into single origins.** It had no `blend_matrix` rows at all, so both Roasting and Lbs Needed fell to the single-origin branch and rendered a row named after the blend — plausible-looking and wrong, the exact shape ADR 0015 worries about. It is the same blend as Cocoa Drop, so it now carries Cocoa Drop's components (Ntwari 20 / San Augustine 60 / Worka 20). Data fix, no code: `blend_matrix` rows are ordinary app data, editable in the Blends tab.
+- **The 40lb xBloom bulk box now counts on the roasting plan.** `Cocoa Drops xBloom Bulk 40lb Box` has one variant, `Default Title` — its weight lives in the *product name*, so `variantToLbs()` returned 0 and 40 lbs of coffee that has to go through the drum was invisible to the roaster. New `bulkNameToLbs()`, called **only** from `renderRoasting()` as a fallback when the variant yields nothing.
+- **Lbs Needed deliberately still shows nothing for it.** `computeRoastedNeeded()` does not call the new helper, so the box stays excluded there exactly as ADR 0015 specifies — xBloom is planned separately and is not filled off the bagging list. Roasting asks what goes in the drum; Lbs Needed asks what is in the bins. ADR [`0016`](./decisions/0016-bulk-weight-in-product-name.md) records why this is one function with one caller rather than a fix inside `variantToLbs`.
+- **`Cocoa Drops xBloom Bulk 45lb Box` retired.** No 45lb product exists in Shopify — the live SKU is the **40lb** box (`cocoa-drops-xbloom`, `TCCDS-40`), so that recipe could never match anything. Replaced with `Cocoa Drops xBloom Bulk 40lb Box` (with the S, matching Shopify exactly) on Cocoa Drop's split, in place of the 70/30 Nayarit plus / San Augustine it used to record.
+
+### Detours & fixes
+
+- **The obvious fix was the wrong one.** Teaching `variantToLbs()` to read the product name is one line and both tabs pick it up for free — which is precisely the bug, because it would put an xBloom box onto the bins tab. The asymmetry is the point, so the fallback lives in a separate function with a single visible caller.
+- **A bare name parse would have invented coffee.** The catalog carries an unlisted `5 lb weight for shipping`, a filler used to pad shipping weight. An unguarded regex over product names turns it into 5 lbs of roasted coffee. `bulkNameToLbs` returns 0 unless the name says `bulk` *and* carries an lb figure; verified the filler returns 0 while `Cocoa Drops xBloom Bulk 40lb Box` → 40 and the archived `… - BULK 2lbs` shapes → 2.
+
+### Verification
+
+- Browser, live Supabase data. Bridge Blend's 2.25 lbs now splits Ntwari 0.45 / San Augustine 1.35 / Worka 0.45 on Lbs Needed, and its own row is gone from both tabs.
+- One simulated 40lb box (in memory — the production plan was in active use) adds exactly Ntwari +8.0, San Augustine +24.0, Worka +8.0 = 40 lbs on Roasting, with **no** leftover row named after the box. Lbs Needed is byte-identical with and without it, and grows no xBloom row.
+- Both cards render on the Blends tab under the right names with the right ratios.
+- All three inline `<script>` blocks parse; no positional `.tab[n]` lookups; console clean.
+- **Noticed mid-session: someone ran Pull Orders at 17:03Z**, which changed the plan under this session (a Rotheca Decaf line dropped, Nayarit plus fell, BomBón doubled, two rows now bagged). Totals in the entry above this one were taken before that pull and no longer match the live plan. Nothing to do with these changes — worth knowing when reading the two entries side by side.
+
+### Decisions captured
+
+- [`0016-bulk-weight-in-product-name.md`](./decisions/0016-bulk-weight-in-product-name.md)
+
 ## 2026-09-03 — Step: "Lbs Needed" tab — the pre-bagging inventory check
 
 ### Work done
@@ -50,8 +76,8 @@
 
 - Verified in a desktop browser at iPad widths (1024px and 820px), not on the iPad itself. Worth one look on the device, plus the one check no browser can make: do the numbers match a physical count of the bins?
 - **Rename the three untagged xBloom products in Shopify** (`gum-drop-xbloom`, `dark-drop-xbloom`, `bombon-jhoan-vergara-colombia-copy`) so their titles carry `xBloom`. Until then their orders count as ordinary demand on this tab.
-- **Add `Bridge Blend - Grondin Community Bridge Composition` to `blend_matrix`**, or confirm it is meant to read as a single origin. It currently shows as its own row on both this tab and Roasting.
-- **Reconcile `Cocoa Drops xBloom Bulk 45lb Box` (blend_matrix) with `… 40lb Box` (Shopify).**
+- ~~**Add `Bridge Blend - Grondin Community Bridge Composition` to `blend_matrix`**~~ — done the same day; it is the same blend as Cocoa Drop and now carries its recipe. See the entry above.
+- ~~**Reconcile `Cocoa Drops xBloom Bulk 45lb Box` (blend_matrix) with `… 40lb Box` (Shopify).**~~ — done the same day; the 45lb rows are retired and the box now counts on Roasting. See the entry above.
 
 ## 2026-08-28 — Step: Bagging tab → spreadsheet grid
 

@@ -807,6 +807,19 @@ function variantToLbs(variant) {
   return u === 'oz' ? n/16 : n
 }
 
+// A few bulk SKUs carry their weight in the PRODUCT name and leave the variant as
+// "Default Title" - "Cocoa Drops xBloom Bulk 40lb Box" is the live one. That coffee
+// still goes through the drum, so the roasting plan has to count it. Only consulted
+// when the variant yields nothing, and only for names that say "bulk", so the
+// unlisted "5 lb weight for shipping" filler can't be read as 5 lbs of coffee.
+// Lbs Needed deliberately does NOT use this: xBloom is excluded there by design
+// (ADR 0015). This is a question about the drum, not about the bins.
+function bulkNameToLbs(productName) {
+  if (!productName || !/bulk/i.test(productName)) return 0
+  const m = productName.match(/(\d+\.?\d*)\s*(lb|pound)/i)
+  return m ? parseFloat(m[1]) : 0
+}
+
 function isDrop(name) { return name.toLowerCase().includes('drop') }
 
 function variantSortWeight(variant) {
@@ -1244,7 +1257,7 @@ function renderRoasting() {
   const roastedByProduct = {}
   for (const row of planData) {
     if (lateIds.has(row.id)) continue
-    const lbs = variantToLbs(row.variant_title) * qtyRemaining(row)
+    const lbs = (variantToLbs(row.variant_title) || bulkNameToLbs(row.product_name)) * qtyRemaining(row)
     if (lbs<=0) continue
     roastedByProduct[row.product_name] = (roastedByProduct[row.product_name]||0) + lbs
   }
