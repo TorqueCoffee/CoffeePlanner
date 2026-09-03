@@ -1,5 +1,58 @@
 # Journal
 
+## 2026-09-03 — Step: "Lbs Needed" tab — the pre-bagging inventory check
+
+### Work done
+
+- **New read-only tab, "Lbs Needed"**, sitting between Bagging and Roasting. It answers the one question asked before bagging starts: how many pounds of **roasted** coffee does each single origin have to supply today. Every Drop is split into its components by `blend_matrix.ratio`, so a coffee that only ever appears inside a blend still gets a line. Three columns — Coffee / Roasted lbs / Where it goes — plus a total row. Nothing on it writes, edits, locks or counts.
+- **`computeRoastedNeeded()`** is deliberately *not* `renderRoasting()`'s math (ADR [`0015`](./decisions/0015-lbs-needed-tab.md)): it sums `qty_needed` rather than `qtyRemaining` (the figure must not shrink as people bag, or the 7am comparison against the bins stops meaning anything), stops at roasted lbs with no shrink/green conversion, and ignores `roastLocks` freezes and `plan_state.finalized_at` entirely — this is a physical question, not a plan question. The tab says so in a subhead, because the two tabs now legitimately show different numbers for the same coffee.
+- **xBloom excluded**, both the pod SKUs and the rare `Cocoa Drops xBloom Bulk 40lb Box` — planned separately, not filled off the daily bagging list. `/xbloom|xpod/i` against product name and variant title.
+- **Broken blend ratios raise a red banner on this tab too.** Roasting already warns, but every component figure under a blend that doesn't total 100% is wrong, and this is the list someone acts on.
+- **No schema change, no new Supabase call.** It renders off `planData` and `blendMatrix`, already in memory; `loadPlan()` gained a `renderLbsNeeded()` call so the tab is current after a pull, an Add Order or a realtime `daily_plan` event.
+
+### Detours & fixes
+
+- **A ninth tab would have wrapped the tab row onto a second line on the iPad.** Andy's suggestion — move Help up beside Activity — works and costs nothing: `.activity-btn` and `.tab` were already the same pill (same padding, same `rgba(255,254,240,.08)` fill, same `.25` border), so it needed one new rule for the active state. Tab row stays at nine, on one line.
+- **Two callers looked the Blends tab up by position** — `document.querySelectorAll('.tab')[3]` in the blend-issue banner and `tabs[3]` in `gotoBatchSizes()`. Both mean "Blends". Inserting the new tab before it would have shifted index 3 to B2B and sent both to the wrong screen **with no error**. Fixed before touching the tab bar: every tab now carries `data-tab`, and a `gotoTab(name)` helper resolves by name.
+- **First cut of the "not counted" note was dishonest.** It listed the excluded *product*, so a coffee with both an xPod variant and ordinary 12oz bags would read "Ethiopia Guji not counted" while its bag lines were in fact counted. Exclusion is per line; the note now names the line (`product (variant)`) and lists only lines that carried real weight — pod-count variants have no `lb|oz` unit and were already contributing zero.
+
+### Verification
+
+- All three inline `<script>` blocks parse (`new Function(src)`).
+- `computeRoastedNeeded()` driven headless against synthetic data and checked against hand math: Dark Drop at 8x12oz + 2x5lb = 16.0 lbs, split 60/40 into Balboa and Sumatra, with 3x2lb of Balboa sold direct on top → Balboa 15.6, Sumatra 6.4, grand total 22.0. Matches.
+- Confirmed the figure is unchanged when every row is flipped to fully bagged, done and locked — i.e. it really is total demand, not remaining.
+- Confirmed the ratio guard fires on a 60/30 blend, that both xBloom shapes are dropped, and that a coffee with an xPod variant keeps its ordinary bag lines.
+- `grep` confirms no positional `.tab[n]` lookups remain.
+- **Rendered and driven in a real browser** (later the same day, `python3 -m http.server 3007`, live Supabase data — 21 `daily_plan` lines, 17 `blend_matrix` rows, nothing bagged, no roast freezes, `finalized_at` null). The earlier "not rendered in a browser" caveat is now closed. Eleven-item checklist, all PASS:
+  - **Tab row on one line** at 1024px and 820px — nine tabs, one distinct `getBoundingClientRect().top`, no horizontal body scroll. Help sits in the header (`top: 14`) above the tab row (`top: 59`).
+  - **Help** opens the Help view, takes `.activity-btn.is-on`, and clears it on switching to any tab. No `.tab` shows active while Help is open, which is correct — it is not in the row.
+  - **Long names wrap, never truncate.** At 375px every one of the eleven names wraps and none is clipped (`scrollWidth <= clientWidth` on all); the grid scrolls inside itself (560px content in a 343px box) and the page body does not scroll sideways.
+  - **Both de-positioned links land on Blends.** The `⚠ Blend issue` banner (forced visible by feeding `validateBlends()` a stub Shopify list, not by editing production `blend_matrix`) and Roasting's `Batch sizes →` both switch to `blends` and the latter scrolls `#originSettings` into view.
+  - **Numbers agree with Roasting's roasted-lbs demand for all eleven coffees**, to three decimals, checked against `liveRoastedLbs` — including `Worka Chelbessa`, which only ever appears inside Cocoa Drop. Hand-checked independently: the eleven rows sum to 89.75 lbs, exactly the sum of every weighted line, so the blend explosion conserves weight. Cocoa Drop's three components sum to its 24.25 lbs; Dark Drop's three to its 7.0.
+  - **The figure does not move when you bag.** Simulated the `+` taps in memory rather than writing to the production plan and the un-erasable `activity_log`: three increments on a Balboa row, then every row flipped to fully bagged + done + locked — the per-coffee map is byte-identical both times, total stays 89.7.
+  - **Empty state** before Pull Orders reads "Click “Pull Orders” to load", no blank box, no throw.
+  - **Print** hides the tab. `@media print` resolves to `.header, .toolbar, #bagging, #lbsneeded, … { display: none !important }` with `#roasting { display: block !important }`; the Print button is a bare `window.print()`, so the stylesheet is the whole story.
+  - **Console clean** on load and across every tab switch. The only two errors are the local-only `404` on `/api/shopify-token?type=products` and the JSON-parse rejection that follows it — `python -m http.server` serves no serverless functions. Neither comes from the new code, and **Pull Orders itself could not be exercised locally** for the same reason.
+- **Failure states hold** (test-gates G-U3). `blendMatrix = []` — Drops render as their own rows, no crash. A row with `variant_title: null` and `qty_needed: null` — dropped silently, no throw, and `escHtml` neutralises a `<script>` in a product name. A component with `ratio: null` — the red banner fires and the row reads 0.0, so it is visibly wrong *and* flagged rather than quietly plausible.
+- **test-gates run** (universal + PWA blocks; Shopify blocks N/A). G-U1–U7 and G-PWA1/2/3/6 PASS or N/A: served file's md5 matches the working copy, empty and failure states graceful, mobile fold fine at 375px, Bagging/Roasting/Blends/Help all still work, diff traces line-for-line to ADR 0015, `planData = data || []` and `blendMatrix = bm || []` already guard the Supabase-null case, and `renderLbsNeeded()` sits after the awaits in `loadPlan()`. G-PWA4/5 N/A — the tab has no dropdown and no writes. There is no `TESTS.md` in this repo; the gates were run and recorded here instead.
+
+#### Live-data checks — three findings, no code changed
+
+- **The xBloom regex has no false positives, and three false negatives it cannot fix.** Checked `/xbloom|xpod/i` against all 36 active `Torque Coffees` products and every variant. Every string it matches is genuinely an xBloom SKU. But three products carry the `xBloom` tag and an xBloom handle while their title *and* variant title are indistinguishable from the ordinary retail product: `Gum Drop` (`gum-drop-xbloom`, `12 oz bag / In Stock`, `TCCDB-1`), `Dark Drop` (`dark-drop-xbloom`, `12 oz bag / In Stock`, `TCDDB-1`) and `BomBón - Jhoan Vergara, Colombia` (`bombon-jhoan-vergara-colombia-copy`, `12 oz bag / In stock`, no SKU). Fed one through, an order for the xBloom `Gum Drop` counts as 3.0 lbs of ordinary Gum Drop and explodes into Balboa/BomBón/La Mora. **No regex over `product_name` and `variant_title` can separate these from their twins** — the strings are identical — so the regex was left alone. The fix is a catalog rename, adding `xBloom` to those three titles the way `Worka Chelbessa … xBloom` and `Ntwari Natural … xBloom` already are. Andy's call, outside this tab.
+- **`variantToLbs` zeroes nothing that carries weight in the variant.** Every distinct `variant_title` in `daily_plan` resolves correctly (`12oz Bag`, `12 oz bag`, `12oz Coffee Bag` → 0.75; `2lb Bag`, `2lb Bulk` → 2; `5lb Bag`, `5lb Bulk`, `5lb Bulk Bag` → 5), as does every shape the live catalog can produce (`2LBS Bulk Bags`, `2Lb BULK Bags`, `12oz Retail bag`, `12oz Box`, `12 oz / In stock`). Pod variants (`8 xPods`, `xBloom xPods`) return 0, which is correct. The one genuine zero is `Cocoa Drops xBloom Bulk 40lb Box`, whose variant is `Default Title` — its 40 lbs live in the *product name*, so there is no weight string in the variant to parse. It is xBloom and excluded here by design; a side effect is that it computes to 0 and therefore never appears in the "not counted" note, which only lists lines with real weight. Not fixed: the variant genuinely carries no weight, so this is a naming problem, not a `variantToLbs` bug, and it belongs to Roasting (where the box would silently contribute 0 green lbs) rather than to this tab.
+- **Blend name matching has no near-misses, but `Bridge Blend` has no recipe at all.** Compared every `daily_plan.product_name` against every `blend_matrix.product_name`: zero case-, whitespace- or punctuation-only mismatches, and no stray leading/trailing whitespace on either side. `BomBón`/`Cuarenteño` merge correctly across the two tables, so their unicode normalisation agrees. But `Bridge Blend - Grondin Community Bridge Composition` — a composition, sold in 12oz/2lb/5lb — has **no `blend_matrix` rows whatsoever**, so it falls to the single-origin branch and renders as a 2.3 lb row named after the blend. That is exactly the plausible-looking-and-wrong shape ADR 0015 worries about, but the cause is missing data, not the match, and **Roasting shows the same row** (2.3 roasted / 2.6 green). Also noted: `blend_matrix` calls the bulk box `Cocoa Drops xBloom Bulk 45lb Box` while Shopify calls it `… 40lb Box`, so that recipe can never match either. Both are data gaps for Andy; no code touched.
+
+### Decisions captured
+
+- [`0015-lbs-needed-tab.md`](./decisions/0015-lbs-needed-tab.md)
+
+### Still pending — Andy
+
+- Verified in a desktop browser at iPad widths (1024px and 820px), not on the iPad itself. Worth one look on the device, plus the one check no browser can make: do the numbers match a physical count of the bins?
+- **Rename the three untagged xBloom products in Shopify** (`gum-drop-xbloom`, `dark-drop-xbloom`, `bombon-jhoan-vergara-colombia-copy`) so their titles carry `xBloom`. Until then their orders count as ordinary demand on this tab.
+- **Add `Bridge Blend - Grondin Community Bridge Composition` to `blend_matrix`**, or confirm it is meant to read as a single origin. It currently shows as its own row on both this tab and Roasting.
+- **Reconcile `Cocoa Drops xBloom Bulk 45lb Box` (blend_matrix) with `… 40lb Box` (Shopify).**
+
 ## 2026-08-28 — Step: Bagging tab → spreadsheet grid
 
 ### Work done
